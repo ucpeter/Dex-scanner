@@ -17,8 +17,8 @@
     const { useState, useEffect, useRef } = React;
     const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = Recharts;
 
-    // CHANGE THIS TO YOUR RENDER BACKEND URL
-    const API_BASE_URL = 'https://your-render-app.onrender.com';
+    // Use relative URL since frontend and backend are on same domain
+    const API_BASE_URL = window.location.origin;
 
     function DexArbitrageScanner() {
       const [opportunities, setOpportunities] = useState([]);
@@ -278,4 +278,4 @@
     ReactDOM.render(<DexArbitrageScanner />, document.getElementById('root'));
   </script>
 </body>
-</html>
+  </html>
