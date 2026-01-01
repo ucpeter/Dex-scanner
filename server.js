@@ -10,6 +10,9 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Serve static files from 'public' directory
+app.use(express.static('public'));
+
 // Environment variables (set these in Render dashboard)
 const PORT = process.env.PORT || 3001;
 const NETWORKS = {
@@ -250,6 +253,11 @@ app.get('/api/networks', (req, res) => {
       chainId: NETWORKS[key].chainId
     }))
   });
+});
+
+// Serve frontend at root
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
 });
 
 app.listen(PORT, () => {
