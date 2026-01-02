@@ -3,279 +3,320 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Real-Time DEX Arbitrage Scanner</title>
+  <title>DEX Arbitrage Scanner</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://unpkg.com/recharts@2.5.0/dist/Recharts.js"></script>
 </head>
-<body>
-  <div id="root"></div>
+<body class="bg-gray-900">
+  <div id="root">
+    <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
+      <div class="max-w-7xl mx-auto">
+        <!-- Header -->
+        <div class="text-center mb-8">
+          <h1 class="text-4xl font-bold text-white mb-2">🔍 Real-Time DEX Arbitrage Scanner</h1>
+          <p class="text-gray-300">Live blockchain scanning for Furucombo opportunities</p>
+        </div>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-    const { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } = Recharts;
+        <!-- Network Selector -->
+        <div class="mb-6 bg-slate-800 rounded-lg p-6 border border-slate-700">
+          <h3 class="text-xl font-semibold text-white mb-4">Select Network</h3>
+          <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" id="networkButtons">
+            <!-- Buttons will be inserted here -->
+          </div>
+          <p id="networkWarning" class="text-sm text-yellow-400 mt-3 hidden">⚠️ Stop scanning to switch networks</p>
+        </div>
 
-    // Use relative URL since frontend and backend are on same domain
-    const API_BASE_URL = window.location.origin;
+        <!-- Stats -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+            <p class="text-gray-400 text-sm">Network</p>
+            <p class="text-xl font-bold text-white" id="currentNetwork">Ethereum</p>
+          </div>
+          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+            <p class="text-gray-400 text-sm">Opportunities</p>
+            <p class="text-2xl font-bold text-white" id="totalOpps">0</p>
+          </div>
+          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+            <p class="text-gray-400 text-sm">Avg Profit</p>
+            <p class="text-2xl font-bold text-green-400" id="avgProfit">$0.00</p>
+          </div>
+          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+            <p class="text-gray-400 text-sm">Scans</p>
+            <p class="text-2xl font-bold text-purple-400" id="scansCount">0</p>
+          </div>
+        </div>
 
-    function DexArbitrageScanner() {
-      const [opportunities, setOpportunities] = useState([]);
-      const [priceHistory, setPriceHistory] = useState([]);
-      const [isScanning, setIsScanning] = useState(false);
-      const [selectedNetwork, setSelectedNetwork] = useState('ethereum');
-      const [loading, setLoading] = useState(false);
-      const [stats, setStats] = useState({
-        totalOpportunities: 0,
-        avgProfit: 0,
-        highestProfit: 0,
-        scansCompleted: 0
-      });
-      const scanIntervalRef = useRef(null);
+        <!-- Control Button -->
+        <div class="flex justify-center mb-6">
+          <button id="scanButton" class="flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white transition-all bg-green-600 hover:bg-green-700">
+            ▶️ Start Scanning
+          </button>
+        </div>
 
-      const NETWORKS = {
-        ethereum: { name: 'Ethereum', color: 'bg-blue-600', chainId: 1 },
-        polygon: { name: 'Polygon', color: 'bg-purple-600', chainId: 137 },
-        arbitrum: { name: 'Arbitrum', color: 'bg-cyan-600', chainId: 42161 },
-        optimism: { name: 'Optimism', color: 'bg-red-600', chainId: 10 },
-        base: { name: 'Base', color: 'bg-blue-500', chainId: 8453 },
-        bsc: { name: 'BNB Chain', color: 'bg-yellow-600', chainId: 56 }
-      };
+        <!-- Status Message -->
+        <div id="statusMessage" class="mb-6 bg-blue-800 rounded-lg p-4 border border-blue-700 hidden">
+          <p class="text-white text-center" id="statusText"></p>
+        </div>
 
-      const scanForArbitrage = async () => {
-        setLoading(true);
-        try {
-          const response = await fetch(`${API_BASE_URL}/api/scan/${selectedNetwork}`);
-          const data = await response.json();
-
-          if (data.success && data.opportunities.length > 0) {
-            const newOpps = data.opportunities.map(opp => ({
-              ...opp,
-              id: Date.now() + Math.random(),
-              estimatedProfit: (parseFloat(opp.profitPercent) / 100 * 10000).toFixed(2),
-              gasEstimate: selectedNetwork === 'ethereum' ? (15 + Math.random() * 35).toFixed(2) : (0.3 + Math.random() * 2).toFixed(2)
-            }));
-
-            setOpportunities(prev => [...newOpps, ...prev].slice(0, 20));
-
-            const profits = newOpps.map(o => parseFloat(o.estimatedProfit));
-            setStats(prev => ({
-              totalOpportunities: prev.totalOpportunities + newOpps.length,
-              avgProfit: (profits.reduce((a, b) => a + b, 0) / profits.length).toFixed(2),
-              highestProfit: Math.max(...profits).toFixed(2),
-              scansCompleted: prev.scansCompleted + 1
-            }));
-
-            setPriceHistory(prev => {
-              const newHistory = [...prev, {
-                time: new Date().toLocaleTimeString(),
-                opportunities: newOpps.length,
-                avgProfit: newOpps.reduce((sum, o) => sum + parseFloat(o.profitPercent), 0) / newOpps.length
-              }];
-              return newHistory.slice(-20);
-            });
-          } else {
-            setStats(prev => ({ ...prev, scansCompleted: prev.scansCompleted + 1 }));
-          }
-        } catch (error) {
-          console.error('Scan error:', error);
-          alert('Error scanning: ' + error.message + '. Make sure your backend is running!');
-        }
-        setLoading(false);
-      };
-
-      const toggleScanning = () => {
-        if (isScanning) {
-          clearInterval(scanIntervalRef.current);
-          setIsScanning(false);
-        } else {
-          scanForArbitrage();
-          scanIntervalRef.current = setInterval(scanForArbitrage, 10000); // Scan every 10 seconds
-          setIsScanning(true);
-        }
-      };
-
-      useEffect(() => {
-        if (isScanning) {
-          clearInterval(scanIntervalRef.current);
-          setIsScanning(false);
-        }
-        setOpportunities([]);
-        setPriceHistory([]);
-        setStats({ totalOpportunities: 0, avgProfit: 0, highestProfit: 0, scansCompleted: 0 });
-      }, [selectedNetwork]);
-
-      useEffect(() => {
-        return () => {
-          if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
-        };
-      }, []);
-
-      return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-          <div className="max-w-7xl mx-auto">
-            <div className="text-center mb-8">
-              <h1 className="text-4xl font-bold text-white mb-2">🔍 Real-Time DEX Arbitrage Scanner</h1>
-              <p className="text-gray-300">Live blockchain scanning for Furucombo opportunities</p>
-            </div>
-
-            {/* Network Selector */}
-            <div className="mb-6 bg-slate-800 rounded-lg p-6 border border-slate-700">
-              <h3 className="text-xl font-semibold text-white mb-4">Select Network</h3>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-                {Object.entries(NETWORKS).map(([key, network]) => (
-                  <button
-                    key={key}
-                    onClick={() => setSelectedNetwork(key)}
-                    disabled={isScanning}
-                    className={`p-4 rounded-lg border-2 transition-all ${
-                      selectedNetwork === key
-                        ? `${network.color} border-white text-white`
-                        : 'bg-slate-700 border-slate-600 text-gray-300 hover:border-slate-500'
-                    } ${isScanning ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
-                  >
-                    <div className="font-semibold">{network.name}</div>
-                    <div className="text-xs mt-1">Chain {network.chainId}</div>
-                  </button>
-                ))}
-              </div>
-              {isScanning && <p className="text-sm text-yellow-400 mt-3">⚠️ Stop scanning to switch networks</p>}
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                <p className="text-gray-400 text-sm">Network</p>
-                <p className="text-xl font-bold text-white">{NETWORKS[selectedNetwork].name}</p>
-              </div>
-              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                <p className="text-gray-400 text-sm">Opportunities</p>
-                <p className="text-2xl font-bold text-white">{stats.totalOpportunities}</p>
-              </div>
-              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                <p className="text-gray-400 text-sm">Avg Profit</p>
-                <p className="text-2xl font-bold text-green-400">${stats.avgProfit}</p>
-              </div>
-              <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
-                <p className="text-gray-400 text-sm">Scans</p>
-                <p className="text-2xl font-bold text-purple-400">{stats.scansCompleted}</p>
-              </div>
-            </div>
-
-            {/* Control Button */}
-            <div className="flex justify-center mb-6">
-              <button
-                onClick={toggleScanning}
-                disabled={loading}
-                className={`flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white transition-all ${
-                  isScanning 
-                    ? 'bg-red-600 hover:bg-red-700' 
-                    : 'bg-green-600 hover:bg-green-700'
-                } ${loading ? 'opacity-50 cursor-wait' : ''}`}
-              >
-                {loading ? '⏳ Scanning...' : isScanning ? '⏸️ Stop Scanning' : '▶️ Start Scanning'}
-              </button>
-            </div>
-
-            {/* Chart */}
-            {priceHistory.length > 0 && (
-              <div className="bg-slate-800 rounded-lg p-6 mb-6 border border-slate-700">
-                <h3 className="text-xl font-semibold text-white mb-4">Opportunity Trends</h3>
-                <ResponsiveContainer width="100%" height={250}>
-                  <LineChart data={priceHistory}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
-                    <XAxis dataKey="time" stroke="#9CA3AF" />
-                    <YAxis stroke="#9CA3AF" />
-                    <Tooltip contentStyle={{ backgroundColor: '#1e293b', border: '1px solid #475569' }} />
-                    <Legend />
-                    <Line type="monotone" dataKey="opportunities" stroke="#3b82f6" name="Opportunities" />
-                    <Line type="monotone" dataKey="avgProfit" stroke="#10b981" name="Avg Profit %" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-
-            {/* Opportunities List */}
-            <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-              <h3 className="text-xl font-semibold text-white mb-4">
-                {isScanning ? '🔄' : '📊'} Live Arbitrage Opportunities
-              </h3>
-              
-              {opportunities.length === 0 ? (
-                <div className="text-center py-12 text-gray-400">
-                  <p className="text-lg">No opportunities found yet</p>
-                  <p className="text-sm">Start scanning to discover real arbitrage opportunities</p>
-                </div>
-              ) : (
-                <div className="space-y-4 max-h-[600px] overflow-y-auto">
-                  {opportunities.map((opp) => {
-                    const netProfit = (parseFloat(opp.estimatedProfit) - parseFloat(opp.gasEstimate)).toFixed(2);
-                    return (
-                      <div key={opp.id} className="bg-slate-700 rounded-lg p-4 border border-slate-600">
-                        <div className="flex justify-between items-start mb-3">
-                          <div>
-                            <div className="flex items-center gap-2 mb-1">
-                              <h4 className="text-lg font-bold text-white">{opp.pair}</h4>
-                              <span className="text-xs px-2 py-1 rounded bg-green-600 text-white">REAL-TIME</span>
-                            </div>
-                            <p className="text-sm text-gray-400">{new Date(opp.timestamp).toLocaleString()}</p>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-2xl font-bold text-green-400">+{opp.profitPercent}%</p>
-                            <p className="text-sm text-gray-400">Est. ${opp.estimatedProfit}</p>
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-2 gap-4 mb-3">
-                          <div className="bg-slate-600 rounded p-3">
-                            <p className="text-xs text-gray-400 mb-1">Buy on</p>
-                            <p className="font-semibold text-white">{opp.buyDex}</p>
-                            <p className="text-sm text-blue-400">${opp.buyPrice}</p>
-                          </div>
-                          <div className="bg-slate-600 rounded p-3">
-                            <p className="text-xs text-gray-400 mb-1">Sell on</p>
-                            <p className="font-semibold text-white">{opp.sellDex}</p>
-                            <p className="text-sm text-green-400">${opp.sellPrice}</p>
-                          </div>
-                        </div>
-
-                        <div className="bg-slate-600 rounded p-3">
-                          <div className="flex justify-between items-center">
-                            <div>
-                              <p className="text-sm text-gray-400">Net Profit (after gas)</p>
-                              <p className={`text-xl font-bold ${netProfit > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                                ${netProfit}
-                              </p>
-                            </div>
-                            <div className="text-right">
-                              <p className="text-xs text-gray-400">Gas Cost</p>
-                              <p className="text-sm text-yellow-400">${opp.gasEstimate}</p>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Footer */}
-            <div className="mt-6 bg-slate-800 rounded-lg p-4 border border-slate-700">
-              <p className="text-sm text-green-400 font-semibold mb-2">✅ REAL-TIME BLOCKCHAIN SCANNING ACTIVE</p>
-              <p className="text-sm text-gray-400">
-                This scanner makes actual calls to Uniswap V3 and Paraswap V5 on-chain. 
-                Prices are fetched directly from blockchain RPCs every 10 seconds. 
-                Execute profitable opportunities on Furucombo.com.
-              </p>
+        <!-- Opportunities List -->
+        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
+          <h3 class="text-xl font-semibold text-white mb-4">📊 Live Arbitrage Opportunities</h3>
+          
+          <div id="opportunitiesList">
+            <div class="text-center py-12 text-gray-400">
+              <p class="text-lg">No opportunities found yet</p>
+              <p class="text-sm">Start scanning to discover real arbitrage opportunities</p>
             </div>
           </div>
         </div>
-      );
+
+        <!-- Footer -->
+        <div class="mt-6 bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <p class="text-sm text-green-400 font-semibold mb-2">✅ REAL-TIME BLOCKCHAIN SCANNING</p>
+          <p class="text-sm text-gray-400">
+            This scanner makes actual calls to Uniswap V3 and Paraswap V5 on-chain. 
+            Prices are fetched directly from blockchain RPCs every 10 seconds.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let selectedNetwork = 'ethereum';
+    let isScanning = false;
+    let scanInterval = null;
+    let opportunities = [];
+    let stats = {
+      totalOpportunities: 0,
+      avgProfit: 0,
+      scansCompleted: 0
+    };
+
+    const NETWORKS = {
+      ethereum: { name: 'Ethereum', color: 'bg-blue-600', chainId: 1 },
+      polygon: { name: 'Polygon', color: 'bg-purple-600', chainId: 137 },
+      arbitrum: { name: 'Arbitrum', color: 'bg-cyan-600', chainId: 42161 },
+      optimism: { name: 'Optimism', color: 'bg-red-600', chainId: 10 },
+      base: { name: 'Base', color: 'bg-blue-500', chainId: 8453 },
+      bsc: { name: 'BNB Chain', color: 'bg-yellow-600', chainId: 56 }
+    };
+
+    // API Base URL - same domain since frontend and backend are together
+    const API_BASE_URL = window.location.origin;
+
+    // Initialize network buttons
+    function initNetworkButtons() {
+      const container = document.getElementById('networkButtons');
+      Object.entries(NETWORKS).forEach(([key, network]) => {
+        const button = document.createElement('button');
+        button.id = `network-${key}`;
+        button.className = `p-4 rounded-lg border-2 transition-all cursor-pointer ${
+          key === selectedNetwork 
+            ? `${network.color} border-white text-white` 
+            : 'bg-slate-700 border-slate-600 text-gray-300 hover:border-slate-500'
+        }`;
+        button.innerHTML = `
+          <div class="font-semibold">${network.name}</div>
+          <div class="text-xs mt-1">Chain ${network.chainId}</div>
+        `;
+        button.onclick = () => selectNetwork(key);
+        container.appendChild(button);
+      });
     }
 
-    ReactDOM.render(<DexArbitrageScanner />, document.getElementById('root'));
+    // Select network
+    function selectNetwork(network) {
+      if (isScanning) return;
+      
+      selectedNetwork = network;
+      document.getElementById('currentNetwork').textContent = NETWORKS[network].name;
+      
+      // Update button styles
+      Object.keys(NETWORKS).forEach(key => {
+        const btn = document.getElementById(`network-${key}`);
+        if (key === network) {
+          btn.className = `p-4 rounded-lg border-2 transition-all cursor-pointer ${NETWORKS[key].color} border-white text-white`;
+        } else {
+          btn.className = 'p-4 rounded-lg border-2 transition-all cursor-pointer bg-slate-700 border-slate-600 text-gray-300 hover:border-slate-500';
+        }
+      });
+
+      // Reset data
+      opportunities = [];
+      stats = { totalOpportunities: 0, avgProfit: 0, scansCompleted: 0 };
+      updateStats();
+      renderOpportunities();
+    }
+
+    // Scan for arbitrage
+    async function scanForArbitrage() {
+      showStatus('🔍 Scanning blockchain...', 'blue');
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/scan/${selectedNetwork}`);
+        const data = await response.json();
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Scan failed');
+        }
+
+        if (data.success && data.opportunities.length > 0) {
+          const newOpps = data.opportunities.map(opp => ({
+            ...opp,
+            id: Date.now() + Math.random(),
+            estimatedProfit: (parseFloat(opp.profitPercent) / 100 * 10000).toFixed(2),
+            gasEstimate: selectedNetwork === 'ethereum' ? (15 + Math.random() * 35).toFixed(2) : (0.3 + Math.random() * 2).toFixed(2)
+          }));
+
+          opportunities = [...newOpps, ...opportunities].slice(0, 20);
+
+          const profits = newOpps.map(o => parseFloat(o.estimatedProfit));
+          stats.totalOpportunities += newOpps.length;
+          stats.avgProfit = (profits.reduce((a, b) => a + b, 0) / profits.length).toFixed(2);
+          stats.scansCompleted += 1;
+
+          updateStats();
+          renderOpportunities();
+          showStatus(`✅ Found ${newOpps.length} opportunities!`, 'green');
+        } else {
+          stats.scansCompleted += 1;
+          updateStats();
+          showStatus('ℹ️ No opportunities found in this scan', 'gray');
+        }
+      } catch (error) {
+        console.error('Scan error:', error);
+        showStatus('❌ Error: ' + error.message, 'red');
+      }
+    }
+
+    // Update stats display
+    function updateStats() {
+      document.getElementById('totalOpps').textContent = stats.totalOpportunities;
+      document.getElementById('avgProfit').textContent = `$${stats.avgProfit}`;
+      document.getElementById('scansCount').textContent = stats.scansCompleted;
+    }
+
+    // Show status message
+    function showStatus(text, color) {
+      const statusMsg = document.getElementById('statusMessage');
+      const statusText = document.getElementById('statusText');
+      
+      statusMsg.className = `mb-6 rounded-lg p-4 border bg-${color}-800 border-${color}-700`;
+      statusText.textContent = text;
+      statusMsg.classList.remove('hidden');
+
+      setTimeout(() => {
+        statusMsg.classList.add('hidden');
+      }, 3000);
+    }
+
+    // Render opportunities
+    function renderOpportunities() {
+      const container = document.getElementById('opportunitiesList');
+      
+      if (opportunities.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 text-gray-400">
+            <p class="text-lg">No opportunities found yet</p>
+            <p class="text-sm">Start scanning to discover real arbitrage opportunities</p>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = opportunities.map(opp => {
+        const netProfit = (parseFloat(opp.estimatedProfit) - parseFloat(opp.gasEstimate)).toFixed(2);
+        return `
+          <div class="bg-slate-700 rounded-lg p-4 border border-slate-600 mb-4">
+            <div class="flex justify-between items-start mb-3">
+              <div>
+                <div class="flex items-center gap-2 mb-1">
+                  <h4 class="text-lg font-bold text-white">${opp.pair}</h4>
+                  <span class="text-xs px-2 py-1 rounded bg-green-600 text-white">REAL-TIME</span>
+                </div>
+                <p class="text-sm text-gray-400">${new Date(opp.timestamp).toLocaleString()}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-2xl font-bold text-green-400">+${opp.profitPercent}%</p>
+                <p class="text-sm text-gray-400">Est. $${opp.estimatedProfit}</p>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-4 mb-3">
+              <div class="bg-slate-600 rounded p-3">
+                <p class="text-xs text-gray-400 mb-1">Buy on</p>
+                <p class="font-semibold text-white">${opp.buyDex}</p>
+                <p class="text-sm text-blue-400">$${opp.buyPrice}</p>
+              </div>
+              <div class="bg-slate-600 rounded p-3">
+                <p class="text-xs text-gray-400 mb-1">Sell on</p>
+                <p class="font-semibold text-white">${opp.sellDex}</p>
+                <p class="text-sm text-green-400">$${opp.sellPrice}</p>
+              </div>
+            </div>
+
+            <div class="bg-slate-600 rounded p-3">
+              <div class="flex justify-between items-center">
+                <div>
+                  <p class="text-sm text-gray-400">Net Profit (after gas)</p>
+                  <p class="text-xl font-bold ${netProfit > 0 ? 'text-green-400' : 'text-red-400'}">
+                    $${netProfit}
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-xs text-gray-400">Gas Cost</p>
+                  <p class="text-sm text-yellow-400">$${opp.gasEstimate}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // Toggle scanning
+    function toggleScanning() {
+      const button = document.getElementById('scanButton');
+      const warning = document.getElementById('networkWarning');
+
+      if (isScanning) {
+        // Stop scanning
+        clearInterval(scanInterval);
+        isScanning = false;
+        button.className = 'flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white transition-all bg-green-600 hover:bg-green-700';
+        button.innerHTML = '▶️ Start Scanning';
+        warning.classList.add('hidden');
+        showStatus('⏸️ Scanning stopped', 'gray');
+      } else {
+        // Start scanning
+        isScanning = true;
+        button.className = 'flex items-center gap-2 px-8 py-3 rounded-lg font-semibold text-white transition-all bg-red-600 hover:bg-red-700';
+        button.innerHTML = '⏸️ Stop Scanning';
+        warning.classList.remove('hidden');
+        
+        scanForArbitrage(); // Immediate first scan
+        scanInterval = setInterval(scanForArbitrage, 10000); // Then every 10 seconds
+      }
+    }
+
+    // Initialize
+    document.addEventListener('DOMContentLoaded', () => {
+      initNetworkButtons();
+      document.getElementById('scanButton').onclick = toggleScanning;
+      
+      // Test backend connection
+      fetch(`${API_BASE_URL}/health`)
+        .then(res => res.json())
+        .then(data => {
+          console.log('✅ Backend connected:', data);
+          showStatus('✅ Connected to backend successfully', 'green');
+        })
+        .catch(err => {
+          console.error('❌ Backend connection failed:', err);
+          showStatus('❌ Cannot connect to backend', 'red');
+        });
+    });
   </script>
 </body>
   </html>
