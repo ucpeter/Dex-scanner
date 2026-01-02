@@ -337,4 +337,36 @@ app.get('/api/scan/:network', async (req, res) => {
   }
 });
 
-// Health ch
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Get available networks
+app.get('/api/networks', (req, res) => {
+  res.json({
+    networks: Object.keys(NETWORKS).map(key => ({
+      id: key,
+      name: key.charAt(0).toUpperCase() + key.slice(1),
+      chainId: NETWORKS[key].chainId
+    }))
+  });
+});
+
+// Serve frontend at root
+app.get('/', (req, res) => {
+  res.sendFile(__dirname + '/public/index.html');
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 DEX Arbitrage Scanner running on port ${PORT}`);
+  console.log(`📊 Monitoring ${Object.keys(NETWORKS).length} networks`);
+  console.log(`💱 Tracking ${Object.values(TRADING_PAIRS).reduce((sum, pairs) => sum + pairs.length, 0)} trading pairs across all networks`);
+  console.log(`🔍 Ethereum: ${TRADING_PAIRS.ethereum.length} pairs`);
+  console.log(`🔍 Polygon: ${TRADING_PAIRS.polygon.length} pairs`);
+  console.log(`🔍 Arbitrum: ${TRADING_PAIRS.arbitrum.length} pairs`);
+  console.log(`🔍 Optimism: ${TRADING_PAIRS.optimism.length} pairs`);
+  console.log(`🔍 Base: ${TRADING_PAIRS.base.length} pairs`);
+  console.log(`🔍 BSC: ${TRADING_PAIRS.bsc.length} pairs`);
+});
+
+module.exports = app;
