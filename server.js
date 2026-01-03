@@ -1,3 +1,4 @@
+
 // server.js - Real-time DEX Arbitrage Scanner Backend
 // Deploy this on Render as a Node.js Web Service
 
@@ -302,7 +303,6 @@ async function scanArbitrage(networkKey) {
         continue;
       }
 
-      
       // Find arbitrage between different Uniswap V3 pools
       for (let i = 0; i < uniswapQuotes.length; i++) {
         for (let j = i + 1; j < uniswapQuotes.length; j++) {
@@ -312,16 +312,39 @@ async function scanArbitrage(networkKey) {
           const price1 = parseFloat(pool1.amountOut);
           const price2 = parseFloat(pool2.amountOut);
           
-          const buyPrice = Math.min(price1, price2);
-          const sellPrice = Math.max(price1, price2);
-          const buyPool = price1 < price2 ? pool1 : pool2;
-          const sellPool = price1 < price2 ? pool2 : pool1;
+          // IMPORTANT: Higher output = better price = where we BUY
+          // Lower fee pools usually give MORE output (better price)
+          let buyPool, sellPool, buyPrice, sellPrice;
           
-          const profitPercent = ((sellPrice - buyPrice) / buyPrice) * 100;
+          if (price1 > price2) {
+            // Pool1 gives more output = better price = BUY here
+            buyPool = pool1;
+            buyPrice = price1;
+            sellPool = pool2;
+            sellPrice = price2;
+          } else {
+            // Pool2 gives more output = better price = BUY here
+            buyPool = pool2;
+            buyPrice = price2;
+            sellPool = pool1;
+            sellPrice = price1;
+          }
+          
+          // Profit = (amount received from buy pool - amount needed for sell pool) / amount needed
+          // Actually, for a complete round trip:
+          // 1. Start with X of token0
+          // 2. Swap in buyPool: X token0 → Y token1 (Y is higher because better pool)
+          // 3. Swap in sellPool: Y token1 → Z token0 (Z should be > X if profitable)
+          
+          // But we're comparing single-direction swaps, so the arbitrage is:
+          // If buyPool gives MORE output than sellPool for same input, that's the spread
+          const profitPercent = ((buyPrice - sellPrice) / sellPrice) * 100;
 
           // Find arbitrage with 0.2% threshold
           if (profitPercent > 0.2) {
             console.log(`    ✅ FOUND: ${profitPercent.toFixed(3)}% profit between fee tiers!`);
+            console.log(`       Buy (swap) in ${buyPool.feeName} pool (better price: ${buyPrice.toFixed(2)})`);
+            console.log(`       Sell (swap back) would use ${sellPool.feeName} pool (${sellPrice.toFixed(2)})`);
             
             // Calculate realistic profit on $10,000 trade
             const tradeSizeUSD = 10000;
@@ -357,10 +380,11 @@ async function scanArbitrage(networkKey) {
                     step: 1,
                     action: 'Swap',
                     protocol: `Uniswap V3`,
-                    pool: `${buyPool.feeName} fee tier`,
+                    pool: `${buyPool.feeName} fee tier (BEST PRICE)`,
                     from: pair.token0,
                     to: pair.token1,
-                    expectedOutput: `~${sellPrice.toFixed(2)} ${pair.token1}`
+                    expectedOutput: `~${buyPrice.toFixed(2)} ${pair.token1}`,
+                    note: 'Lower fees = more output = buy here'
                   },
                   {
                     step: 2,
@@ -369,7 +393,8 @@ async function scanArbitrage(networkKey) {
                     pool: `${sellPool.feeName} fee tier`,
                     from: pair.token1,
                     to: pair.token0,
-                    expectedOutput: `initial amount + ${estimatedProfit} profit`
+                    expectedOutput: `initial amount + ${estimatedProfit} profit`,
+                    note: 'Complete the arbitrage loop'
                   },
                   {
                     step: 3,
@@ -379,7 +404,8 @@ async function scanArbitrage(networkKey) {
                   }
                 ],
                 netProfit: `$${(parseFloat(estimatedProfit) - parseFloat(gasEstimate)).toFixed(2)} (after gas)`,
-                gasEstimate: `$${gasEstimate}`
+                gasEstimate: `$${gasEstimate}`,
+                explanation: `Buy at ${buyPool.feeName} (better rate: ${buyPrice.toFixed(2)}), sell at ${sellPool.feeName} (${sellPrice.toFixed(2)}). Profit from rate difference.`
               }
             });
           } else {
@@ -520,3 +546,4 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+  
