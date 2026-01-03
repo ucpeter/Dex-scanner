@@ -176,7 +176,7 @@ async function getUniswapV3Price(network, pair, amountIn) {
     // Try different fee tiers (3000 = 0.3%, 500 = 0.05%, 10000 = 1%)
     const feeTiers = [3000, 500, 10000];
     let bestQuote = null;
-    let bestAmountOut = ethers.BigNumber.from(0);
+    let bestAmountOut = ethers.getBigInt(0);
 
     for (const fee of feeTiers) {
       try {
@@ -191,7 +191,7 @@ async function getUniswapV3Price(network, pair, amountIn) {
         const result = await quoter.quoteExactInputSingle.staticCall(params);
         const amountOut = result[0];
 
-        if (amountOut.gt(bestAmountOut)) {
+        if (amountOut > bestAmountOut) {
           bestAmountOut = amountOut;
           bestQuote = {
             amountOut: ethers.formatUnits(amountOut, pair.decimals1),
@@ -253,17 +253,39 @@ async function scanArbitrage(networkKey) {
   const tradeSize = 1; // Trade 1 unit of token0
   
   // Get network-specific pairs
-  const pairs = TRADING_PAIRS[networkKey] || TRADING_PAIRS.ethereum;
+  const allPairs = TRADING_PAIRS[networkKey] || TRADING_PAIRS.ethereum;
+  
+  // IMPORTANT: Only scan a subset of pairs per call (5-10 pairs max)
+  // This prevents timeouts and ensures we actually get results
+  const maxPairsPerScan = 8;
+  const randomStart = Math.floor(Math.random() * allPairs.length);
+  const pairsToScan = [];
+  
+  for (let i = 0; i < maxPairsPerScan && i < allPairs.length; i++) {
+    const index = (randomStart + i) % allPairs.length;
+    pairsToScan.push(allPairs[index]);
+  }
+  
+  console.log(`\n🔍 Scanning ${pairsToScan.length} pairs on ${networkKey}...`);
 
-  for (const pair of pairs) {
+  for (const pair of pairsToScan) {
     try {
-      // Get prices from both DEXes in parallel
-      const [uniswapQuote, paraswapQuote] = await Promise.all([
-        getUniswapV3Price(network, pair, tradeSize),
-        getParaswapPrice(network, pair, tradeSize)
+      console.log(`  Checking ${pair.token0}/${pair.token1}...`);
+      
+      // Get prices from both DEXes in parallel with timeout
+      const timeout = 8000; // 8 second timeout per pair
+      const [uniswapQuote, paraswapQuote] = await Promise.race([
+        Promise.all([
+          getUniswapV3Price(network, pair, tradeSize),
+          getParaswapPrice(network, pair, tradeSize)
+        ]),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('Timeout')), timeout)
+        )
       ]);
 
       if (!uniswapQuote || !paraswapQuote) {
+        console.log(`    ⚠️  No quotes available`);
         continue;
       }
 
@@ -289,8 +311,9 @@ async function scanArbitrage(networkKey) {
 
       const profitPercent = ((sellPrice - buyPrice) / buyPrice) * 100;
 
-      // Only include opportunities with >0.5% profit
-      if (profitPercent > 0.5) {
+      // LOWER THRESHOLD to 0.3% to find more opportunities
+      if (profitPercent > 0.3) {
+        console.log(`    ✅ FOUND: ${profitPercent.toFixed(3)}% profit!`);
         opportunities.push({
           network: networkKey,
           chainId: network.chainId,
@@ -303,12 +326,16 @@ async function scanArbitrage(networkKey) {
           timestamp: new Date().toISOString(),
           tradeSize: tradeSize
         });
+      } else {
+        console.log(`    📊 ${profitPercent.toFixed(3)}% (too low)`);
       }
     } catch (error) {
-      console.error(`Error scanning ${pair.token0}/${pair.token1}:`, error.message);
+      console.log(`    ❌ Error: ${error.message}`);
+      continue;
     }
   }
-
+  
+  console.log(`✅ Scan complete: Found ${opportunities.length} opportunities\n`);
   return opportunities;
 }
 
@@ -337,6 +364,7 @@ app.get('/api/scan/:network', async (req, res) => {
   }
 });
 
+// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
@@ -358,15 +386,18 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
+  const totalPairs = Object.values(TRADING_PAIRS).reduce((sum, pairs) => sum + pairs.length, 0);
   console.log(`🚀 DEX Arbitrage Scanner running on port ${PORT}`);
   console.log(`📊 Monitoring ${Object.keys(NETWORKS).length} networks`);
-  console.log(`💱 Tracking ${Object.values(TRADING_PAIRS).reduce((sum, pairs) => sum + pairs.length, 0)} trading pairs across all networks`);
-  console.log(`🔍 Ethereum: ${TRADING_PAIRS.ethereum.length} pairs`);
-  console.log(`🔍 Polygon: ${TRADING_PAIRS.polygon.length} pairs`);
-  console.log(`🔍 Arbitrum: ${TRADING_PAIRS.arbitrum.length} pairs`);
-  console.log(`🔍 Optimism: ${TRADING_PAIRS.optimism.length} pairs`);
-  console.log(`🔍 Base: ${TRADING_PAIRS.base.length} pairs`);
-  console.log(`🔍 BSC: ${TRADING_PAIRS.bsc.length} pairs`);
+  console.log(`💱 Total trading pairs: ${totalPairs}`);
+  console.log(`\n📍 Pairs per network:`);
+  console.log(`   Ethereum: ${TRADING_PAIRS.ethereum.length} pairs`);
+  console.log(`   Polygon: ${TRADING_PAIRS.polygon.length} pairs ⚡ LOW GAS`);
+  console.log(`   Arbitrum: ${TRADING_PAIRS.arbitrum.length} pairs ⚡ LOW GAS`);
+  console.log(`   Optimism: ${TRADING_PAIRS.optimism.length} pairs ⚡ LOW GAS`);
+  console.log(`   Base: ${TRADING_PAIRS.base.length} pairs ⚡ LOW GAS`);
+  console.log(`   BSC: ${TRADING_PAIRS.bsc.length} pairs ⚡ LOW GAS`);
+  console.log(`\n✅ Focus on L2 networks for best profit margins!`);
 });
 
 module.exports = app;
