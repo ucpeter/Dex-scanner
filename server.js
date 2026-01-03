@@ -1,4 +1,3 @@
-
 // server.js - Real-time DEX Arbitrage Scanner Backend
 // Deploy this on Render as a Node.js Web Service
 
@@ -168,22 +167,19 @@ const QUOTER_ABI = [
   'function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'
 ];
 
-// Get Uniswap V3 price
-async function getUniswapV3Price(network, pair, amountIn) {
+// Get Uniswap V3 price - Returns prices for ALL fee tiers
+async function getUniswapV3Prices(network, pair, amountIn) {
   try {
     const provider = new ethers.JsonRpcProvider(network.rpc, network.chainId, {
       staticNetwork: true
     });
     
-    // Set a timeout for the provider
     provider.pollingInterval = 5000;
-    
     const quoter = new ethers.Contract(network.quoterV2, QUOTER_ABI, provider);
     
-    // Try most common fee tier first (3000 = 0.3%)
-    const feeTiers = [3000, 500, 10000];
-    let bestQuote = null;
-    let bestAmountOut = 0n;
+    // Try all fee tiers and return all successful quotes
+    const feeTiers = [3000, 500, 10000]; // 0.3%, 0.05%, 1%
+    const quotes = [];
 
     for (const fee of feeTiers) {
       try {
@@ -197,7 +193,6 @@ async function getUniswapV3Price(network, pair, amountIn) {
           sqrtPriceLimitX96: 0
         };
 
-        // Add timeout to the call
         const callPromise = quoter.quoteExactInputSingle.staticCall(params);
         const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error('RPC timeout')), 5000)
@@ -206,20 +201,17 @@ async function getUniswapV3Price(network, pair, amountIn) {
         const result = await Promise.race([callPromise, timeoutPromise]);
         const amountOut = result[0];
 
-        if (amountOut > bestAmountOut) {
-          bestAmountOut = amountOut;
-          bestQuote = {
-            amountOut: ethers.formatUnits(amountOut, pair.decimals1),
-            fee: fee
-          };
-        }
+        quotes.push({
+          amountOut: ethers.formatUnits(amountOut, pair.decimals1),
+          fee: fee,
+          feeName: fee === 500 ? '0.05%' : fee === 3000 ? '0.3%' : '1%'
+        });
       } catch (err) {
-        // Pool doesn't exist for this fee tier or RPC error
         continue;
       }
     }
 
-    return bestQuote;
+    return quotes.length > 0 ? quotes : null;
   } catch (error) {
     console.log(`    ⚠️  Uniswap error: ${error.message}`);
     return null;
@@ -272,17 +264,15 @@ async function getParaswapPrice(network, pair, amountIn) {
   }
 }
 
-// Scan for arbitrage opportunities
+// Scan for arbitrage opportunities - Compare Uniswap V3 fee tiers against each other
 async function scanArbitrage(networkKey) {
   const network = NETWORKS[networkKey];
   const opportunities = [];
-  const tradeSize = 1; // Trade 1 unit of token0
+  const tradeSize = 1;
   
-  // Get network-specific pairs
   const allPairs = TRADING_PAIRS[networkKey] || TRADING_PAIRS.ethereum;
   
-  // IMPORTANT: Only scan a subset of pairs per call (5-10 pairs max)
-  // This prevents timeouts and ensures we actually get results
+  // Scan 8 pairs per request
   const maxPairsPerScan = 8;
   const randomStart = Math.floor(Math.random() * allPairs.length);
   const pairsToScan = [];
@@ -298,62 +288,57 @@ async function scanArbitrage(networkKey) {
     try {
       console.log(`  Checking ${pair.token0}/${pair.token1}...`);
       
-      // Get prices from both DEXes in parallel with timeout
-      const timeout = 8000; // 8 second timeout per pair
-      const [uniswapQuote, paraswapQuote] = await Promise.race([
-        Promise.all([
-          getUniswapV3Price(network, pair, tradeSize),
-          getParaswapPrice(network, pair, tradeSize)
-        ]),
+      // Get prices from ALL Uniswap V3 fee tiers
+      const timeout = 10000;
+      const uniswapQuotes = await Promise.race([
+        getUniswapV3Prices(network, pair, tradeSize),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Timeout')), timeout)
         )
       ]);
 
-      if (!uniswapQuote || !paraswapQuote) {
-        console.log(`    ⚠️  No quotes available`);
+      if (!uniswapQuotes || uniswapQuotes.length < 2) {
+        console.log(`    ⚠️  Not enough pools available (need 2+ fee tiers)`);
         continue;
       }
 
-      const uniswapPrice = parseFloat(uniswapQuote.amountOut);
-      const paraswapPrice = parseFloat(paraswapQuote.amountOut);
+      
+      // Find arbitrage between different Uniswap V3 pools
+      for (let i = 0; i < uniswapQuotes.length; i++) {
+        for (let j = i + 1; j < uniswapQuotes.length; j++) {
+          const pool1 = uniswapQuotes[i];
+          const pool2 = uniswapQuotes[j];
+          
+          const price1 = parseFloat(pool1.amountOut);
+          const price2 = parseFloat(pool2.amountOut);
+          
+          const buyPrice = Math.min(price1, price2);
+          const sellPrice = Math.max(price1, price2);
+          const buyPool = price1 < price2 ? pool1 : pool2;
+          const sellPool = price1 < price2 ? pool2 : pool1;
+          
+          const profitPercent = ((sellPrice - buyPrice) / buyPrice) * 100;
 
-      // Calculate arbitrage opportunity
-      let buyDex, sellDex, buyPrice, sellPrice;
-
-      if (uniswapPrice > paraswapPrice) {
-        // Buy on Paraswap, sell on Uniswap
-        buyDex = 'Paraswap V5';
-        sellDex = 'Uniswap V3';
-        buyPrice = paraswapPrice;
-        sellPrice = uniswapPrice;
-      } else {
-        // Buy on Uniswap, sell on Paraswap
-        buyDex = 'Uniswap V3';
-        sellDex = 'Paraswap V5';
-        buyPrice = uniswapPrice;
-        sellPrice = paraswapPrice;
-      }
-
-      const profitPercent = ((sellPrice - buyPrice) / buyPrice) * 100;
-
-      // LOWER THRESHOLD to 0.3% to find more opportunities
-      if (profitPercent > 0.3) {
-        console.log(`    ✅ FOUND: ${profitPercent.toFixed(3)}% profit!`);
-        opportunities.push({
-          network: networkKey,
-          chainId: network.chainId,
-          pair: `${pair.token0}/${pair.token1}`,
-          buyDex,
-          sellDex,
-          buyPrice: buyPrice.toFixed(6),
-          sellPrice: sellPrice.toFixed(6),
-          profitPercent: profitPercent.toFixed(3),
-          timestamp: new Date().toISOString(),
-          tradeSize: tradeSize
-        });
-      } else {
-        console.log(`    📊 ${profitPercent.toFixed(3)}% (too low)`);
+          // Find arbitrage with 0.2% threshold (even lower!)
+          if (profitPercent > 0.2) {
+            console.log(`    ✅ FOUND: ${profitPercent.toFixed(3)}% profit between fee tiers!`);
+            opportunities.push({
+              network: networkKey,
+              chainId: network.chainId,
+              pair: `${pair.token0}/${pair.token1}`,
+              buyDex: `Uniswap V3 (${buyPool.feeName})`,
+              sellDex: `Uniswap V3 (${sellPool.feeName})`,
+              buyPrice: buyPrice.toFixed(6),
+              sellPrice: sellPrice.toFixed(6),
+              profitPercent: profitPercent.toFixed(3),
+              timestamp: new Date().toISOString(),
+              tradeSize: tradeSize,
+              note: 'Arbitrage between different Uniswap V3 pools'
+            });
+          } else {
+            console.log(`    📊 ${profitPercent.toFixed(3)}% between ${buyPool.feeName} and ${sellPool.feeName}`);
+          }
+        }
       }
     } catch (error) {
       console.log(`    ❌ Error: ${error.message}`);
@@ -400,56 +385,46 @@ app.get('/api/test/:network', async (req, res) => {
 
   const networkConfig = NETWORKS[network];
   const pairs = TRADING_PAIRS[network] || TRADING_PAIRS.ethereum;
-  const testPair = pairs[0]; // Test first pair
+  const testPair = pairs[0];
   
   console.log(`\n🧪 TESTING ${network.toUpperCase()}: ${testPair.token0}/${testPair.token1}`);
   
   try {
     const tradeSize = 1;
     
-    console.log(`📍 Testing Uniswap V3...`);
+    console.log(`📍 Testing Uniswap V3 all pools...`);
     const uniswapStart = Date.now();
-    const uniswapQuote = await getUniswapV3Price(networkConfig, testPair, tradeSize);
+    const uniswapQuotes = await getUniswapV3Prices(networkConfig, testPair, tradeSize);
     const uniswapTime = Date.now() - uniswapStart;
-    
-    console.log(`📍 Testing Paraswap V5...`);
-    const paraswapStart = Date.now();
-    const paraswapQuote = await getParaswapPrice(networkConfig, testPair, tradeSize);
-    const paraswapTime = Date.now() - paraswapStart;
     
     const result = {
       success: true,
       network,
       pair: `${testPair.token0}/${testPair.token1}`,
-      uniswap: {
-        success: !!uniswapQuote,
-        price: uniswapQuote?.amountOut || null,
-        fee: uniswapQuote?.fee || null,
-        time: `${uniswapTime}ms`
-      },
-      paraswap: {
-        success: !!paraswapQuote,
-        price: paraswapQuote?.amountOut || null,
-        dex: paraswapQuote?.dex || null,
-        time: `${paraswapTime}ms`
-      },
+      uniswapPools: uniswapQuotes || [],
+      totalPools: uniswapQuotes?.length || 0,
+      time: `${uniswapTime}ms`,
       arbitrage: null
     };
     
-    if (uniswapQuote && paraswapQuote) {
-      const uniPrice = parseFloat(uniswapQuote.amountOut);
-      const paraPrice = parseFloat(paraswapQuote.amountOut);
-      const diff = Math.abs(uniPrice - paraPrice);
-      const profitPercent = (diff / Math.min(uniPrice, paraPrice)) * 100;
+    // Check for arbitrage between pools
+    if (uniswapQuotes && uniswapQuotes.length >= 2) {
+      const prices = uniswapQuotes.map(q => parseFloat(q.amountOut));
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      const profitPercent = ((maxPrice - minPrice) / minPrice) * 100;
       
       result.arbitrage = {
-        priceSpread: diff.toFixed(6),
+        minPrice: minPrice.toFixed(6),
+        maxPrice: maxPrice.toFixed(6),
+        priceSpread: (maxPrice - minPrice).toFixed(6),
         profitPercent: profitPercent.toFixed(3) + '%',
-        profitable: profitPercent > 0.3
+        profitable: profitPercent > 0.2,
+        strategy: 'Buy from lowest fee pool, sell to highest fee pool'
       };
     }
     
-    console.log(`✅ Test complete`);
+    console.log(`✅ Test complete - Found ${result.totalPools} pools`);
     res.json(result);
   } catch (error) {
     console.error('Test error:', error);
@@ -498,4 +473,3 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
-        
