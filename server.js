@@ -1,3 +1,4 @@
+
 // server.js - Real-time DEX Arbitrage Scanner Backend
 // Deploy this on Render as a Node.js Web Service
 
@@ -170,25 +171,39 @@ const QUOTER_ABI = [
 // Get Uniswap V3 price
 async function getUniswapV3Price(network, pair, amountIn) {
   try {
-    const provider = new ethers.JsonRpcProvider(network.rpc);
+    const provider = new ethers.JsonRpcProvider(network.rpc, network.chainId, {
+      staticNetwork: true
+    });
+    
+    // Set a timeout for the provider
+    provider.pollingInterval = 5000;
+    
     const quoter = new ethers.Contract(network.quoterV2, QUOTER_ABI, provider);
     
-    // Try different fee tiers (3000 = 0.3%, 500 = 0.05%, 10000 = 1%)
+    // Try most common fee tier first (3000 = 0.3%)
     const feeTiers = [3000, 500, 10000];
     let bestQuote = null;
-    let bestAmountOut = ethers.getBigInt(0);
+    let bestAmountOut = 0n;
 
     for (const fee of feeTiers) {
       try {
+        const amountInWei = ethers.parseUnits(amountIn.toString(), pair.decimals0);
+        
         const params = {
           tokenIn: pair.token0Address,
           tokenOut: pair.token1Address,
-          amountIn: ethers.parseUnits(amountIn.toString(), pair.decimals0),
+          amountIn: amountInWei,
           fee: fee,
           sqrtPriceLimitX96: 0
         };
 
-        const result = await quoter.quoteExactInputSingle.staticCall(params);
+        // Add timeout to the call
+        const callPromise = quoter.quoteExactInputSingle.staticCall(params);
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('RPC timeout')), 5000)
+        );
+        
+        const result = await Promise.race([callPromise, timeoutPromise]);
         const amountOut = result[0];
 
         if (amountOut > bestAmountOut) {
@@ -199,14 +214,14 @@ async function getUniswapV3Price(network, pair, amountIn) {
           };
         }
       } catch (err) {
-        // Pool doesn't exist for this fee tier, continue
+        // Pool doesn't exist for this fee tier or RPC error
         continue;
       }
     }
 
     return bestQuote;
   } catch (error) {
-    console.error('Uniswap V3 quote error:', error.message);
+    console.log(`    ⚠️  Uniswap error: ${error.message}`);
     return null;
   }
 }
@@ -229,19 +244,30 @@ async function getParaswapPrice(network, pair, amountIn) {
 
     const response = await axios.get(url, { 
       params,
-      timeout: 5000 
+      timeout: 5000,
+      headers: {
+        'Accept': 'application/json'
+      }
     });
 
     if (response.data && response.data.priceRoute) {
+      const destAmount = response.data.priceRoute.destAmount;
       return {
-        amountOut: ethers.formatUnits(response.data.priceRoute.destAmount, pair.decimals1),
+        amountOut: ethers.formatUnits(destAmount, pair.decimals1),
         dex: response.data.priceRoute.bestRoute?.[0]?.swaps?.[0]?.swapExchanges?.[0]?.exchange || 'Paraswap'
       };
     }
 
     return null;
   } catch (error) {
-    console.error('Paraswap quote error:', error.message);
+    // Log detailed error for debugging
+    if (error.response) {
+      console.log(`    ⚠️  Paraswap error: ${error.response.status} - ${error.response.data?.error || 'Unknown'}`);
+    } else if (error.code === 'ECONNABORTED') {
+      console.log(`    ⚠️  Paraswap timeout`);
+    } else {
+      console.log(`    ⚠️  Paraswap error: ${error.message}`);
+    }
     return null;
   }
 }
@@ -364,6 +390,77 @@ app.get('/api/scan/:network', async (req, res) => {
   }
 });
 
+// TEST ENDPOINT - Debug a single pair
+app.get('/api/test/:network', async (req, res) => {
+  const { network } = req.params;
+  
+  if (!NETWORKS[network]) {
+    return res.status(400).json({ error: 'Invalid network' });
+  }
+
+  const networkConfig = NETWORKS[network];
+  const pairs = TRADING_PAIRS[network] || TRADING_PAIRS.ethereum;
+  const testPair = pairs[0]; // Test first pair
+  
+  console.log(`\n🧪 TESTING ${network.toUpperCase()}: ${testPair.token0}/${testPair.token1}`);
+  
+  try {
+    const tradeSize = 1;
+    
+    console.log(`📍 Testing Uniswap V3...`);
+    const uniswapStart = Date.now();
+    const uniswapQuote = await getUniswapV3Price(networkConfig, testPair, tradeSize);
+    const uniswapTime = Date.now() - uniswapStart;
+    
+    console.log(`📍 Testing Paraswap V5...`);
+    const paraswapStart = Date.now();
+    const paraswapQuote = await getParaswapPrice(networkConfig, testPair, tradeSize);
+    const paraswapTime = Date.now() - paraswapStart;
+    
+    const result = {
+      success: true,
+      network,
+      pair: `${testPair.token0}/${testPair.token1}`,
+      uniswap: {
+        success: !!uniswapQuote,
+        price: uniswapQuote?.amountOut || null,
+        fee: uniswapQuote?.fee || null,
+        time: `${uniswapTime}ms`
+      },
+      paraswap: {
+        success: !!paraswapQuote,
+        price: paraswapQuote?.amountOut || null,
+        dex: paraswapQuote?.dex || null,
+        time: `${paraswapTime}ms`
+      },
+      arbitrage: null
+    };
+    
+    if (uniswapQuote && paraswapQuote) {
+      const uniPrice = parseFloat(uniswapQuote.amountOut);
+      const paraPrice = parseFloat(paraswapQuote.amountOut);
+      const diff = Math.abs(uniPrice - paraPrice);
+      const profitPercent = (diff / Math.min(uniPrice, paraPrice)) * 100;
+      
+      result.arbitrage = {
+        priceSpread: diff.toFixed(6),
+        profitPercent: profitPercent.toFixed(3) + '%',
+        profitable: profitPercent > 0.3
+      };
+    }
+    
+    console.log(`✅ Test complete`);
+    res.json(result);
+  } catch (error) {
+    console.error('Test error:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: error.message,
+      stack: error.stack 
+    });
+  }
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
@@ -401,3 +498,4 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
+        
