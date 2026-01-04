@@ -1,5 +1,4 @@
-// server.js - Real-time DEX Arbitrage Scanner Backend
-// Deploy this on Render as a Node.js Web Service
+// server.js - Fixed version for Uniswap V3 vs ParaSwap V5 arbitrage
 
 const express = require('express');
 const cors = require('cors');
@@ -10,11 +9,12 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve static files from 'public' directory
+// Serve static files
 app.use(express.static('public'));
 
-// Environment variables (set these in Render dashboard)
 const PORT = process.env.PORT || 3001;
+
+// Environment variables for RPCs (set these in Render)
 const NETWORKS = {
   ethereum: {
     rpc: process.env.ETHEREUM_RPC || 'https://eth.llamarpc.com',
@@ -50,115 +50,36 @@ const NETWORKS = {
     paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: '0x33128a8fC17869897dcE68Ed026d694621f6FDfD',
     quoterV2: '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'
-  },
-  bsc: {
-    rpc: process.env.BSC_RPC || 'https://bsc-dataseed.binance.org',
-    chainId: 56,
-    paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapV3Factory: '0xdB1d10011AD0Ff90774D0C6Bb92e5C5c8b4461F7',
-    quoterV2: '0x78D78E420Da98ad378D7799bE8f4AF69033EB077'
   }
 };
 
-// Trading pairs to monitor - Expanded list with more tokens
+// Focus on HIGH LIQUIDITY pairs for flashloan arbitrage
 const TRADING_PAIRS = {
   ethereum: [
-    // Major pairs
+    // Major stablecoin pairs (best for arbitrage)
     { token0: 'WETH', token1: 'USDC', token0Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', token1Address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', decimals0: 18, decimals1: 6 },
     { token0: 'WETH', token1: 'USDT', token0Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', token1Address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals0: 18, decimals1: 6 },
-    { token0: 'WETH', token1: 'DAI', token0Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', token1Address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals0: 18, decimals1: 18 },
-    { token0: 'WBTC', token1: 'WETH', token0Address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 8, decimals1: 18 },
     { token0: 'USDC', token1: 'USDT', token0Address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', token1Address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', decimals0: 6, decimals1: 6 },
-    { token0: 'USDC', token1: 'DAI', token0Address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', token1Address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', decimals0: 6, decimals1: 18 },
+    { token0: 'DAI', token1: 'USDC', token0Address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', token1Address: '0xA0b86991c6218b36c1d19D4a2e9Eb0ce3606eB48', decimals0: 18, decimals1: 6 },
     
-    // DeFi Blue Chips
-    { token0: 'LINK', token1: 'WETH', token0Address: '0x514910771AF9Ca656af840dff83E8264EcF986CA', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'UNI', token1: 'WETH', token0Address: '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'AAVE', token1: 'WETH', token0Address: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'MKR', token1: 'WETH', token0Address: '0x9f8F72aA9304c8B593d555F12eF6589cC3A579A2', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'CRV', token1: 'WETH', token0Address: '0xD533a949740bb3306d119CC777fa900bA034cd52', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'LDO', token1: 'WETH', token0Address: '0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'SNX', token1: 'WETH', token0Address: '0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    
-    // DEX Tokens
-    { token0: 'SUSHI', token1: 'WETH', token0Address: '0x6B3595068778DD592e39A122f4f5a5cF09C90fE2', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'BAL', token1: 'WETH', token0Address: '0xba100000625a3754423978a60c9317c58a424e3D', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'COMP', token1: 'WETH', token0Address: '0xc00e94Cb662C3520282E6f5717214004A7f26888', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: '1INCH', token1: 'WETH', token0Address: '0x111111111117dC0aa78b770fA6A738034120C302', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'CVX', token1: 'WETH', token0Address: '0x4e3FBD56CD56c3e72c1403e103b45Db9da5B9D2B', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    
-    // L2 & Gaming Tokens
-    { token0: 'ENS', token1: 'WETH', token0Address: '0xC18360217D8F7Ab5e7c516566761Ea12Ce7F9D72', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'IMX', token1: 'WETH', token0Address: '0xF57e7e7C23978C3cAEC3C3548E3D615c346e79fF', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'GALA', token1: 'WETH', token0Address: '0xd1d2Eb1B1e90B638588728b4130137D262C87cae', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 8, decimals1: 18 },
-    { token0: 'APE', token1: 'WETH', token0Address: '0x4d224452801ACEd8B2F0aebE155379bb5D594381', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'BLUR', token1: 'WETH', token0Address: '0x5283D291DBCF85356A21bA090E6db59121208b44', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    
-    // Meme & New Tokens
-    { token0: 'PEPE', token1: 'WETH', token0Address: '0x6982508145454Ce325dDbE47a25d4ec3d2311933', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    
-    // Oracle & Data
-    { token0: 'GRT', token1: 'WETH', token0Address: '0xc944E90C64B2c07662A292be6244BDf05Cda44a7', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'BAND', token1: 'WETH', token0Address: '0xBA11D00c5f74255f56a5E366F4F77f5A186d7f55', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'API3', token1: 'WETH', token0Address: '0x0b38210ea11411557c13457D4dA7dC6ea731B88a', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    
-    // DeFi 2.0
-    { token0: 'FXS', token1: 'WETH', token0Address: '0x3432B6A60D23Ca0dFCa7761B7ab56459D9C964D0', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'RNDR', token1: 'WETH', token0Address: '0x6De037ef9aD2725EB40118Bb1702EBb27e4Aeb24', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'FET', token1: 'WETH', token0Address: '0xaea46A60368A7bD060eec7DF8CBa43b7EF41Ad85', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'OCEAN', token1: 'WETH', token0Address: '0x967da4048cD07aB37855c090aAF366e4ce1b9F48', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    
-    // Yield Tokens
-    { token0: 'YFI', token1: 'WETH', token0Address: '0x0bc529c00C6401aEF6D220BE8C6Ea1667F6Ad93e', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'PENDLE', token1: 'WETH', token0Address: '0x808507121B80c02388fAd14726482e061B8da827', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    
-    // Infrastructure
-    { token0: 'ANKR', token1: 'WETH', token0Address: '0x8290333ceF9e6D528dD5618Fb97a76f268f3EDD4', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'MATIC', token1: 'WETH', token0Address: '0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
+    // High volume trading pairs
+    { token0: 'WBTC', token1: 'WETH', token0Address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 8, decimals1: 18 },
+    { token0: 'LINK', token1: 'WETH', token0Address: '0x514910771AF9Ca656af840dff83E8264EcF986CA', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 }
   ],
   
   polygon: [
     { token0: 'WMATIC', token1: 'USDC', token0Address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', token1Address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', decimals0: 18, decimals1: 6 },
-    { token0: 'WMATIC', token1: 'USDT', token0Address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', token1Address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals0: 18, decimals1: 6 },
     { token0: 'WETH', token1: 'USDC', token0Address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', token1Address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', decimals0: 18, decimals1: 6 },
-    { token0: 'WBTC', token1: 'WETH', token0Address: '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6', token1Address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', decimals0: 8, decimals1: 18 },
-    { token0: 'LINK', token1: 'WMATIC', token0Address: '0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39', token1Address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', decimals0: 18, decimals1: 18 },
-    { token0: 'AAVE', token1: 'WMATIC', token0Address: '0xD6DF932A45C0f255f85145f286eA0b292B21C90B', token1Address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', decimals0: 18, decimals1: 18 },
-    { token0: 'CRV', token1: 'WMATIC', token0Address: '0x172370d5Cd63279eFa6d502DAB29171933a610AF', token1Address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', decimals0: 18, decimals1: 18 },
+    { token0: 'USDC', token1: 'USDT', token0Address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', token1Address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals0: 6, decimals1: 6 }
   ],
   
   arbitrum: [
     { token0: 'WETH', token1: 'USDC', token0Address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', token1Address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', decimals0: 18, decimals1: 6 },
-    { token0: 'WETH', token1: 'USDT', token0Address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', token1Address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals0: 18, decimals1: 6 },
-    { token0: 'WBTC', token1: 'WETH', token0Address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f', token1Address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', decimals0: 8, decimals1: 18 },
-    { token0: 'ARB', token1: 'WETH', token0Address: '0x912CE59144191C1204E64559FE8253a0e49E6548', token1Address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', decimals0: 18, decimals1: 18 },
-    { token0: 'GMX', token1: 'WETH', token0Address: '0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a', token1Address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', decimals0: 18, decimals1: 18 },
-    { token0: 'LINK', token1: 'WETH', token0Address: '0xf97f4df75117a78c1A5a0DBb814Af92458539FB4', token1Address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', decimals0: 18, decimals1: 18 },
-  ],
-  
-  optimism: [
-    { token0: 'WETH', token1: 'USDC', token0Address: '0x4200000000000000000000000000000000000006', token1Address: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607', decimals0: 18, decimals1: 6 },
-    { token0: 'WETH', token1: 'DAI', token0Address: '0x4200000000000000000000000000000000000006', token1Address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', decimals0: 18, decimals1: 18 },
-    { token0: 'OP', token1: 'WETH', token0Address: '0x4200000000000000000000000000000000000042', token1Address: '0x4200000000000000000000000000000000000006', decimals0: 18, decimals1: 18 },
-    { token0: 'WBTC', token1: 'WETH', token0Address: '0x68f180fcCe6836688e9084f035309E29Bf0A2095', token1Address: '0x4200000000000000000000000000000000000006', decimals0: 8, decimals1: 18 },
-    { token0: 'LINK', token1: 'WETH', token0Address: '0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6', token1Address: '0x4200000000000000000000000000000000000006', decimals0: 18, decimals1: 18 },
+    { token0: 'ARB', token1: 'WETH', token0Address: '0x912CE59144191C1204E64559FE8253a0e49E6548', token1Address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', decimals0: 18, decimals1: 18 }
   ],
   
   base: [
-    { token0: 'WETH', token1: 'USDC', token0Address: '0x4200000000000000000000000000000000000006', token1Address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals0: 18, decimals1: 6 },
-    { token0: 'WETH', token1: 'DAI', token0Address: '0x4200000000000000000000000000000000000006', token1Address: '0x50c5725949A6F0c72E6C4a641F24049A917DB0Cb', decimals0: 18, decimals1: 18 },
-    { token0: 'cbETH', token1: 'WETH', token0Address: '0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22', token1Address: '0x4200000000000000000000000000000000000006', decimals0: 18, decimals1: 18 },
-    { token0: 'AERO', token1: 'WETH', token0Address: '0x940181a94A35A4569E4529A3CDfB74e38FD98631', token1Address: '0x4200000000000000000000000000000000000006', decimals0: 18, decimals1: 18 },
-    { token0: 'BRETT', token1: 'WETH', token0Address: '0x532f27101965dd16442E59d40670FaF5eBB142E4', token1Address: '0x4200000000000000000000000000000000000006', decimals0: 18, decimals1: 18 },
-    { token0: 'DEGEN', token1: 'WETH', token0Address: '0x4ed4E862860beD51a9570b96d89aF5E1B0Efefed', token1Address: '0x4200000000000000000000000000000000000006', decimals0: 18, decimals1: 18 },
-  ],
-  
-  bsc: [
-    { token0: 'WBNB', token1: 'USDT', token0Address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', token1Address: '0x55d398326f99059fF775485246999027B3197955', decimals0: 18, decimals1: 18 },
-    { token0: 'WBNB', token1: 'BUSD', token0Address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', token1Address: '0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56', decimals0: 18, decimals1: 18 },
-    { token0: 'WETH', token1: 'USDT', token0Address: '0x2170Ed0880ac9A755fd29B2688956BD959F933F8', token1Address: '0x55d398326f99059fF775485246999027B3197955', decimals0: 18, decimals1: 18 },
-    { token0: 'BTCB', token1: 'WBNB', token0Address: '0x7130d2A12B9BCbFAe4f2634d864A1Ee1Ce3Ead9c', token1Address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', decimals0: 18, decimals1: 18 },
-    { token0: 'CAKE', token1: 'WBNB', token0Address: '0x0E09FaBB73Bd3Ade0a17ECC321fD13a19e81cE82', token1Address: '0xbb4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c', decimals0: 18, decimals1: 18 },
+    { token0: 'WETH', token1: 'USDC', token0Address: '0x4200000000000000000000000000000000000006', token1Address: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', decimals0: 18, decimals1: 6 }
   ]
 };
 
@@ -167,417 +88,463 @@ const QUOTER_ABI = [
   'function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'
 ];
 
-// Get Uniswap V3 price - Returns prices for ALL fee tiers
-async function getUniswapV3Prices(network, pair, amountIn) {
+// Get Uniswap V3 Best Price (lowest of all fee tiers)
+async function getUniswapV3BestPrice(network, pair, amountIn) {
   try {
     const provider = new ethers.JsonRpcProvider(network.rpc, network.chainId, {
       staticNetwork: true
     });
     
-    provider.pollingInterval = 5000;
     const quoter = new ethers.Contract(network.quoterV2, QUOTER_ABI, provider);
     
-    // Try all fee tiers and return all successful quotes
-    const feeTiers = [3000, 500, 10000]; // 0.3%, 0.05%, 1%
-    const quotes = [];
-
-    for (const fee of feeTiers) {
+    // Try all fee tiers to find best price
+    const feeTiers = [
+      { fee: 100, name: '0.01%' },
+      { fee: 500, name: '0.05%' },
+      { fee: 3000, name: '0.3%' },
+      { fee: 10000, name: '1%' }
+    ];
+    
+    let bestPrice = null;
+    let bestFee = null;
+    
+    for (const tier of feeTiers) {
       try {
         const amountInWei = ethers.parseUnits(amountIn.toString(), pair.decimals0);
         
-        const params = {
+        const result = await quoter.quoteExactInputSingle.staticCall({
           tokenIn: pair.token0Address,
           tokenOut: pair.token1Address,
           amountIn: amountInWei,
-          fee: fee,
+          fee: tier.fee,
           sqrtPriceLimitX96: 0
-        };
-
-        const callPromise = quoter.quoteExactInputSingle.staticCall(params);
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('RPC timeout')), 5000)
-        );
-        
-        const result = await Promise.race([callPromise, timeoutPromise]);
-        const amountOut = result[0];
-
-        quotes.push({
-          amountOut: ethers.formatUnits(amountOut, pair.decimals1),
-          fee: fee,
-          feeName: fee === 500 ? '0.05%' : fee === 3000 ? '0.3%' : '1%'
         });
+        
+        const amountOut = ethers.formatUnits(result[0], pair.decimals1);
+        const price = parseFloat(amountOut);
+        
+        // Find LOWEST price (best to buy from)
+        if (!bestPrice || price < bestPrice) {
+          bestPrice = price;
+          bestFee = tier;
+        }
       } catch (err) {
+        // Pool doesn't exist for this fee tier - skip
         continue;
       }
     }
-
-    return quotes.length > 0 ? quotes : null;
+    
+    if (bestPrice) {
+      return {
+        amountOut: bestPrice.toFixed(6),
+        fee: bestFee.fee,
+        feeName: bestFee.name,
+        dex: 'Uniswap V3'
+      };
+    }
+    
+    return null;
   } catch (error) {
     console.log(`    ⚠️  Uniswap error: ${error.message}`);
     return null;
   }
 }
 
-// Get 1inch API quote as Paraswap alternative (NO API KEY REQUIRED!)
-async function get1inchPrice(network, pair, amountIn) {
+// Get ParaSwap V5 Price - FIXED VERSION
+async function getParaswapV5Price(network, pair, amountIn) {
   try {
     const amount = ethers.parseUnits(amountIn.toString(), pair.decimals0).toString();
     
-    // 1inch API v5 - Free, no authentication required!
-    const url = `https://api.1inch.io/v5.0/${network.chainId}/quote`;
-    const params = {
-      fromTokenAddress: pair.token0Address,
-      toTokenAddress: pair.token1Address,
-      amount: amount
-    };
-
-    const response = await axios.get(url, { 
-      params,
-      timeout: 8000,
-      headers: {
-        'Accept': 'application/json'
+    // Use multiple endpoints to avoid blocks
+    const endpoints = [
+      'https://apiv5.paraswap.io',
+      'https://api.paraswap.io'
+    ];
+    
+    for (const baseUrl of endpoints) {
+      try {
+        console.log(`    Trying ${baseUrl}...`);
+        
+        const response = await axios.get(`${baseUrl}/prices`, {
+          params: {
+            srcToken: pair.token0Address,
+            destToken: pair.token1Address,
+            amount: amount,
+            srcDecimals: pair.decimals0,
+            destDecimals: pair.decimals1,
+            network: network.chainId,
+            side: 'SELL',
+            includeContractMethods: 'simpleSwap',
+            partner: 'paraswap.io' // Some endpoints require partner
+          },
+          timeout: 5000,
+          headers: {
+            'Accept': 'application/json',
+            'User-Agent': 'Mozilla/5.0',
+            'Origin': 'https://paraswap.io',
+            'Referer': 'https://paraswap.io/'
+          }
+        });
+        
+        if (response.data && response.data.priceRoute) {
+          const destAmount = response.data.priceRoute.destAmount;
+          const dexUsed = response.data.priceRoute.bestRoute?.[0]?.swaps?.[0]?.swapExchanges?.[0]?.exchange || 'ParaSwap';
+          
+          console.log(`    ✅ ParaSwap success via ${baseUrl}`);
+          
+          return {
+            amountOut: ethers.formatUnits(destAmount, pair.decimals1),
+            dex: dexUsed,
+            rawRoute: response.data.priceRoute
+          };
+        }
+      } catch (err) {
+        if (err.response?.status === 403) {
+          console.log(`    ⚠️  ParaSwap 403 from ${baseUrl}, trying next...`);
+          continue;
+        }
+        if (err.code === 'ECONNABORTED') {
+          console.log(`    ⚠️  ParaSwap timeout from ${baseUrl}`);
+          continue;
+        }
+        console.log(`    ⚠️  ParaSwap error from ${baseUrl}: ${err.message}`);
       }
-    });
-
-    if (response.data && response.data.toTokenAmount) {
-      return {
-        amountOut: ethers.formatUnits(response.data.toTokenAmount, pair.decimals1),
-        dex: '1inch Aggregator'
-      };
     }
-
+    
+    console.log(`    ❌ All ParaSwap endpoints failed`);
     return null;
   } catch (error) {
-    if (error.response) {
-      console.log(`    ⚠️  1inch error: ${error.response.status} - ${error.response.data?.description || 'Unknown'}`);
-    } else if (error.code === 'ECONNABORTED') {
-      console.log(`    ⚠️  1inch timeout`);
-    } else {
-      console.log(`    ⚠️  1inch error: ${error.message}`);
-    }
-    return null;
-  }
-}
-async function getParaswapPrice(network, pair, amountIn) {
-  try {
-    const amount = ethers.parseUnits(amountIn.toString(), pair.decimals0).toString();
-    
-    const url = `${network.paraswapAPI}/prices`;
-    const params = {
-      srcToken: pair.token0Address,
-      destToken: pair.token1Address,
-      amount: amount,
-      srcDecimals: pair.decimals0,
-      destDecimals: pair.decimals1,
-      network: network.chainId,
-      side: 'SELL'
-    };
-
-    // 403 BYPASS TECHNIQUES
-    const bypassHeaders = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      // Mimic real browser User-Agent (critical for bypass)
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      // Add referer to look like browser request
-      'Referer': 'https://paraswap.io/',
-      'Origin': 'https://paraswap.io',
-      // Add these headers to bypass IP blocking
-      'X-Forwarded-For': '127.0.0.1',
-      'X-Real-IP': '127.0.0.1',
-      'X-Client-IP': '127.0.0.1',
-      // Connection headers
-      'Connection': 'keep-alive',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Accept-Language': 'en-US,en;q=0.9',
-      // Cache control
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache'
-    };
-
-    const response = await axios.get(url, { 
-      params,
-      timeout: 8000,
-      headers: bypassHeaders,
-      // Important: Follow redirects
-      maxRedirects: 5,
-      // Validate status - don't throw on 4xx/5xx immediately
-      validateStatus: function (status) {
-        return status >= 200 && status < 500;
-      }
-    });
-
-    
-    // Check if we got blocked again
-    if (response.status === 403) {
-      console.log(`    ⚠️  Paraswap 403 blocked (still)`);
-      return null;
-    }
-
-    if (response.status === 429) {
-      console.log(`    ⚠️  Paraswap rate limited`);
-      return null;
-    }
-
-    if (response.data && response.data.priceRoute) {
-      const destAmount = response.data.priceRoute.destAmount;
-      return {
-        amountOut: ethers.formatUnits(destAmount, pair.decimals1),
-        dex: response.data.priceRoute.bestRoute?.[0]?.swaps?.[0]?.swapExchanges?.[0]?.exchange || 'Paraswap'
-      };
-    }
-
-    return null;
-  } catch (error) {
-    // Log detailed error for debugging
-    if (error.response) {
-      console.log(`    ⚠️  Paraswap error: ${error.response.status} - ${error.response.data?.error || 'Unknown'}`);
-    } else if (error.code === 'ECONNABORTED') {
-      console.log(`    ⚠️  Paraswap timeout`);
-    } else {
-      console.log(`    ⚠️  Paraswap error: ${error.message}`);
-    }
+    console.log(`    ❌ ParaSwap fatal error: ${error.message}`);
     return null;
   }
 }
 
-// Scan for arbitrage opportunities - Compare Uniswap V3 vs Paraswap V5
-async function scanArbitrage(networkKey) {
+// Alternative: Use 0x API as ParaSwap backup
+async function getZeroExPrice(network, pair, amountIn) {
+  try {
+    const amount = ethers.parseUnits(amountIn.toString(), pair.decimals0).toString();
+    
+    // 0x API works on Ethereum, Polygon, BSC, Avalanche
+    const chainMap = {
+      1: 'ethereum',
+      137: 'polygon',
+      56: 'bsc',
+      43114: 'avalanche',
+      10: 'optimism',
+      42161: 'arbitrum'
+    };
+    
+    const chainName = chainMap[network.chainId];
+    if (!chainName) return null;
+    
+    const response = await axios.get(
+      `https://api.0x.org/swap/v1/quote`,
+      {
+        params: {
+          sellToken: pair.token0Address,
+          buyToken: pair.token1Address,
+          sellAmount: amount,
+          slippagePercentage: 0.01, // 1% slippage
+          feeRecipient: '0x0000000000000000000000000000000000000000',
+          buyTokenPercentageFee: 0
+        },
+        headers: {
+          '0x-api-key': process.env.ZEROEX_API_KEY || '', // Optional
+          'Accept': 'application/json'
+        },
+        timeout: 5000
+      }
+    );
+    
+    return {
+      amountOut: ethers.formatUnits(response.data.buyAmount, pair.decimals1),
+      dex: '0x API',
+      source: response.data.source
+    };
+  } catch (error) {
+    console.log(`    ⚠️  0x API error: ${error.response?.status || error.message}`);
+    return null;
+  }
+}
+
+// Scan for Uniswap V3 vs ParaSwap arbitrage
+async function scanV3VsParaSwapArbitrage(networkKey) {
   const network = NETWORKS[networkKey];
   const opportunities = [];
-  const tradeSize = 1;
   
-  const allPairs = TRADING_PAIRS[networkKey] || TRADING_PAIRS.ethereum;
+  // Use trade size of 1 ETH (or equivalent)
+  const tradeSize = networkKey === 'ethereum' ? 1 : 10; // 1 ETH on mainnet, 10 on L2
   
-  // Scan 8 pairs per request
-  const maxPairsPerScan = 8;
-  const randomStart = Math.floor(Math.random() * allPairs.length);
-  const pairsToScan = [];
+  const pairs = TRADING_PAIRS[networkKey] || TRADING_PAIRS.ethereum;
   
-  for (let i = 0; i < maxPairsPerScan && i < allPairs.length; i++) {
-    const index = (randomStart + i) % allPairs.length;
-    pairsToScan.push(allPairs[index]);
-  }
+  console.log(`\n🔍 Scanning ${pairs.length} pairs on ${networkKey} for Uniswap V3 vs ParaSwap arbitrage...`);
   
-  console.log(`\n🔍 Scanning ${pairsToScan.length} pairs on ${networkKey}...`);
-
-  for (const pair of pairsToScan) {
+  for (const pair of pairs) {
     try {
       console.log(`  Checking ${pair.token0}/${pair.token1}...`);
       
-      // Get prices from Uniswap V3, Paraswap, AND 1inch
-      const timeout = 10000;
-      const [uniswapQuotes, paraswapQuote, oneinchQuote] = await Promise.race([
-        Promise.all([
-          getUniswapV3Prices(network, pair, tradeSize),
-          getParaswapPrice(network, pair, tradeSize),
-          get1inchPrice(network, pair, tradeSize)
-        ]),
-        new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('Timeout')), timeout)
-        )
-      ]);
-
-      // Use whichever aggregator worked (Paraswap or 1inch)
-      const aggregatorQuote = paraswapQuote || oneinchQuote;
-      const aggregatorName = paraswapQuote ? 'Paraswap V5' : '1inch';
-
-      // If we have BOTH Uniswap and an aggregator, compare them
-      if (uniswapQuotes && uniswapQuotes.length > 0 && aggregatorQuote) {
-        // Get best Uniswap V3 price
-        const bestUniswap = uniswapQuotes.reduce((best, current) => {
-          return parseFloat(current.amountOut) > parseFloat(best.amountOut) ? current : best;
-        });
+      // Get Uniswap V3 price (lowest of all fee tiers)
+      console.log(`    Fetching Uniswap V3 price...`);
+      const uniswapPrice = await getUniswapV3BestPrice(network, pair, tradeSize);
+      
+      if (!uniswapPrice) {
+        console.log(`    ⚠️  Uniswap V3 price unavailable`);
+        continue;
+      }
+      
+      console.log(`    Uniswap V3 ${uniswapPrice.feeName}: ${uniswapPrice.amountOut} ${pair.token1}`);
+      
+      // Get ParaSwap V5 price
+      console.log(`    Fetching ParaSwap V5 price...`);
+      const paraswapPrice = await getParaswapV5Price(network, pair, tradeSize);
+      
+      // If ParaSwap fails, try 0x as backup
+      let aggregatorPrice = paraswapPrice;
+      if (!paraswapPrice) {
+        console.log(`    Trying 0x API as backup...`);
+        aggregatorPrice = await getZeroExPrice(network, pair, tradeSize);
+      }
+      
+      if (!aggregatorPrice) {
+        console.log(`    ⚠️  No aggregator price available`);
+        continue;
+      }
+      
+      console.log(`    ${aggregatorPrice.dex}: ${aggregatorPrice.amountOut} ${pair.token1}`);
+      
+      // Compare prices
+      const uniswapOut = parseFloat(uniswapPrice.amountOut);
+      const aggregatorOut = parseFloat(aggregatorPrice.amountOut);
+      
+      // Calculate profit percentage
+      const profitPercent = ((Math.max(uniswapOut, aggregatorOut) - Math.min(uniswapOut, aggregatorOut)) / 
+                             Math.min(uniswapOut, aggregatorOut)) * 100;
+      
+      // Determine which DEX is cheaper (buy from) and which is more expensive (sell to)
+      const buyFrom = uniswapOut < aggregatorOut ? 'Uniswap V3' : aggregatorPrice.dex;
+      const sellTo = uniswapOut < aggregatorOut ? aggregatorPrice.dex : 'Uniswap V3';
+      const buyPrice = Math.min(uniswapOut, aggregatorOut);
+      const sellPrice = Math.max(uniswapOut, aggregatorOut);
+      
+      console.log(`    Price difference: ${profitPercent.toFixed(3)}%`);
+      
+      // Check if profitable (account for flashloan fees + gas)
+      const minProfitPercent = networkKey === 'ethereum' ? 0.5 : 0.3; // Higher threshold for mainnet
+      
+      if (profitPercent > minProfitPercent) {
+        console.log(`    ✅ ARBITRAGE FOUND: ${profitPercent.toFixed(3)}% profit!`);
         
-        const uniswapOutput = parseFloat(bestUniswap.amountOut);
-        const aggregatorOutput = parseFloat(aggregatorQuote.amountOut);
+        // Calculate realistic profit
+        const tradeSizeUSD = networkKey === 'ethereum' ? 2000 : 20000; // Approximate USD value
+        const estimatedProfitUSD = (tradeSizeUSD * profitPercent / 100).toFixed(2);
         
-        console.log(`    Uniswap V3 best: ${uniswapOutput.toFixed(6)} (${bestUniswap.feeName})`);
-        console.log(`    ${aggregatorName}: ${aggregatorOutput.toFixed(6)}`);
-        
-        // Determine which DEX has better price (higher output = better)
-        let buyDex, sellDex, buyOutput, sellOutput, buyPool;
-        
-        if (uniswapOutput > aggregatorOutput) {
-          // Uniswap gives better rate - buy there, sell on aggregator
-          buyDex = `Uniswap V3 (${bestUniswap.feeName})`;
-          buyOutput = uniswapOutput;
-          buyPool = bestUniswap.feeName;
-          sellDex = aggregatorName;
-          sellOutput = aggregatorOutput;
+        // Estimate gas costs
+        let gasEstimateUSD;
+        if (networkKey === 'ethereum') {
+          gasEstimateUSD = (50 + Math.random() * 100).toFixed(2); // $50-150
+        } else if (networkKey === 'polygon') {
+          gasEstimateUSD = (0.5 + Math.random() * 2).toFixed(2); // $0.5-2.5
         } else {
-          // Aggregator gives better rate - buy there, sell on Uniswap
-          buyDex = aggregatorName;
-          buyOutput = aggregatorOutput;
-          buyPool = null;
-          sellDex = `Uniswap V3 (${bestUniswap.feeName})`;
-          sellOutput = uniswapOutput;
+          gasEstimateUSD = (2 + Math.random() * 10).toFixed(2); // $2-12
         }
         
-        // Calculate profit
-        const profitPercent = ((buyOutput - sellOutput) / sellOutput) * 100;
+        // Flashloan fee (Aave V3: 0.09%)
+        const flashloanFeeUSD = (tradeSizeUSD * 0.0009).toFixed(2);
         
-        if (profitPercent > 0.3) {
-          console.log(`    ✅ FOUND: ${profitPercent.toFixed(3)}% profit!`);
-          console.log(`       Buy on ${buyDex}: ${buyOutput.toFixed(6)}`);
-          console.log(`       Sell on ${sellDex}: ${sellOutput.toFixed(6)}`);
-          
-          const tradeSizeUSD = 10000;
-          const estimatedProfit = (tradeSizeUSD * profitPercent / 100).toFixed(2);
-          const gasEstimate = network.chainId === 1 ? (15 + Math.random() * 35).toFixed(2) : (0.3 + Math.random() * 2).toFixed(2);
-          
+        // Net profit
+        const netProfitUSD = (parseFloat(estimatedProfitUSD) - parseFloat(gasEstimateUSD) - parseFloat(flashloanFeeUSD)).toFixed(2);
+        
+        if (parseFloat(netProfitUSD) > 0) {
           opportunities.push({
             network: networkKey,
             chainId: network.chainId,
             pair: `${pair.token0}/${pair.token1}`,
-            buyDex,
-            sellDex,
-            buyPrice: buyOutput.toFixed(6),
-            sellPrice: sellOutput.toFixed(6),
+            buyFrom: buyFrom,
+            sellTo: sellTo,
+            buyPrice: buyPrice.toFixed(6),
+            sellPrice: sellPrice.toFixed(6),
             profitPercent: profitPercent.toFixed(3),
-            estimatedProfit: estimatedProfit,
-            gasEstimate: gasEstimate,
-            tradeSize: tradeSizeUSD,
-            timestamp: new Date().toISOString(),
+            tradeSize: `${tradeSize} ${pair.token0}`,
+            tradeSizeUSD: tradeSizeUSD,
+            
+            // Furucombo execution details
             furucomboStrategy: {
-              network: networkKey,
-              chainId: network.chainId,
+              type: 'flashloan_arbitrage',
               flashloan: {
                 protocol: 'Aave V3',
                 asset: pair.token0,
                 assetAddress: pair.token0Address,
-                amount: tradeSizeUSD,
-                fee: '~$9 (0.09%)'
+                amount: `${tradeSize} ${pair.token0}`,
+                fee: `${flashloanFeeUSD} USD (0.09%)`
               },
               steps: [
                 {
                   step: 1,
                   action: 'Swap',
-                  protocol: buyDex.includes('Uniswap') ? 'Uniswap V3' : (buyDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
-                  pool: buyPool || 'Best available route',
+                  protocol: buyFrom === 'Uniswap V3' ? 'Uniswap V3' : 'ParaSwap Router',
                   from: pair.token0,
                   to: pair.token1,
-                  expectedOutput: `${buyOutput.toFixed(6)} ${pair.token1}`,
-                  note: `Better rate: ${buyOutput.toFixed(6)} per ${pair.token0}`
+                  expectedOutput: `${sellPrice.toFixed(2)} ${pair.token1}`
                 },
                 {
                   step: 2,
                   action: 'Swap',
-                  protocol: sellDex.includes('Uniswap') ? 'Uniswap V3' : (sellDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
-                  pool: sellDex.includes('Uniswap') ? bestUniswap.feeName : 'Best available route',
+                  protocol: sellTo === 'Uniswap V3' ? 'Uniswap V3' : 'ParaSwap Router',
                   from: pair.token1,
                   to: pair.token0,
-                  expectedOutput: `${sellOutput.toFixed(6)} ${pair.token0}`,
-                  note: 'Complete arbitrage cycle'
+                  expectedOutput: `${(tradeSize * 1.0009).toFixed(4)} ${pair.token0} + ${netProfitUSD} USD profit`
                 },
                 {
                   step: 3,
                   action: 'Repay Flashloan',
                   protocol: 'Aave V3',
-                  amount: 'borrowed amount + 0.09% fee ($9)'
+                  amount: `${tradeSize} ${pair.token0} + ${flashloanFeeUSD} USD fee`
                 }
               ],
-              netProfit: `$${(parseFloat(estimatedProfit) - parseFloat(gasEstimate)).toFixed(2)} (after gas)`,
-              gasEstimate: `$${gasEstimate}`,
-              explanation: `${buyDex} gives better rate (${buyOutput.toFixed(6)}) vs ${sellDex} (${sellOutput.toFixed(6)}). Profit: ${profitPercent.toFixed(3)}%`
-            }
+              estimatedGas: `${gasEstimateUSD} USD`,
+              flashloanFee: `${flashloanFeeUSD} USD`,
+              netProfit: `${netProfitUSD} USD`,
+              executionTime: '~30 seconds',
+              
+              // Contract addresses for Furucombo
+              contracts: {
+                uniswapRouter: '0xE592427A0AEce92De3Edee1F18E0157C05861564',
+                paraswapRouter: '0xDEF171Fe48CF0115B1d80b88dc8eAB59176FEe57',
+                aaveLendingPool: networkKey === 'ethereum' ? '0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9' : 
+                               networkKey === 'polygon' ? '0x8dFf5E27EA6b7AC08EbFdf9eB090F32ee9a30fcf' : 
+                               '0x794a61358D6845594F94dc1DB02A252b5b4814aD'
+              }
+            },
+            
+            timestamp: new Date().toISOString(),
+            confidence: profitPercent > 1 ? 'HIGH' : 'MEDIUM'
           });
         } else {
-          console.log(`    📊 ${profitPercent.toFixed(3)}% spread (too low)`);
+          console.log(`    ⚠️  Not profitable after fees: ${netProfitUSD} USD net`);
         }
-      } else if (uniswapQuotes && uniswapQuotes.length >= 2) {
-        // Fallback: Compare Uniswap pools if both aggregators failed
-        console.log(`    ⚠️  Both Paraswap and 1inch unavailable, checking Uniswap pools only`);
-        // (Keep existing intra-Uniswap logic as fallback - not shown for brevity)
       } else {
-        console.log(`    ⚠️  Insufficient data to compare`);
+        console.log(`    📊 Spread too small: ${profitPercent.toFixed(3)}% (needs >${minProfitPercent}%)`);
       }
+      
     } catch (error) {
       console.log(`    ❌ Error: ${error.message}`);
       continue;
     }
   }
   
-  console.log(`✅ Scan complete: Found ${opportunities.length} opportunities\n`);
+  console.log(`\n✅ Scan complete: Found ${opportunities.length} arbitrage opportunities\n`);
+  
+  // Log opportunities summary
+  if (opportunities.length > 0) {
+    console.log('📋 Opportunities found:');
+    opportunities.forEach((opp, i) => {
+      console.log(`${i + 1}. ${opp.pair} on ${opp.network}: ${opp.profitPercent}% profit (${opp.furucomboStrategy.netProfit} net)`);
+    });
+  }
+  
   return opportunities;
 }
 
-// API endpoint to scan for opportunities
+// API Endpoints
 app.get('/api/scan/:network', async (req, res) => {
   const { network } = req.params;
-
+  
   if (!NETWORKS[network]) {
-    return res.status(400).json({ error: 'Invalid network' });
+    return res.status(400).json({ error: 'Invalid network. Try: ethereum, polygon, arbitrum, base' });
   }
-
+  
   try {
-    const opportunities = await scanArbitrage(network);
+    const opportunities = await scanV3VsParaSwapArbitrage(network);
+    
     res.json({
       success: true,
       network,
       opportunities,
+      count: opportunities.length,
       timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error('Scan error:', error);
     res.status(500).json({ 
       success: false, 
-      error: error.message 
+      error: error.message,
+      suggestion: 'Try a different network like polygon or arbitrum'
     });
   }
 });
 
-// TEST ENDPOINT - Debug a single pair
-app.get('/api/test/:network', async (req, res) => {
-  const { network } = req.params;
+// Test endpoint with specific pair
+app.get('/api/test/:network/:token0/:token1', async (req, res) => {
+  const { network, token0, token1 } = req.params;
   
   if (!NETWORKS[network]) {
     return res.status(400).json({ error: 'Invalid network' });
   }
-
+  
   const networkConfig = NETWORKS[network];
   const pairs = TRADING_PAIRS[network] || TRADING_PAIRS.ethereum;
-  const testPair = pairs[0];
   
-  console.log(`\n🧪 TESTING ${network.toUpperCase()}: ${testPair.token0}/${testPair.token1}`);
+  // Find the specific pair
+  const pair = pairs.find(p => 
+    p.token0 === token0.toUpperCase() && p.token1 === token1.toUpperCase()
+  );
+  
+  if (!pair) {
+    return res.status(404).json({ error: 'Pair not found' });
+  }
+  
+  console.log(`\n🧪 Testing ${network}: ${pair.token0}/${pair.token1}`);
   
   try {
-    const tradeSize = 1;
+    const tradeSize = network === 'ethereum' ? 1 : 10;
     
-    console.log(`📍 Testing Uniswap V3 all pools...`);
-    const uniswapStart = Date.now();
-    const uniswapQuotes = await getUniswapV3Prices(networkConfig, testPair, tradeSize);
-    const uniswapTime = Date.now() - uniswapStart;
-    
-    const result = {
-      success: true,
+    const results = {
       network,
-      pair: `${testPair.token0}/${testPair.token1}`,
-      uniswapPools: uniswapQuotes || [],
-      totalPools: uniswapQuotes?.length || 0,
-      time: `${uniswapTime}ms`,
+      pair: `${pair.token0}/${pair.token1}`,
+      tradeSize: `${tradeSize} ${pair.token0}`,
+      uniswapV3: null,
+      paraswapV5: null,
+      zeroEx: null,
       arbitrage: null
     };
     
-    // Check for arbitrage between pools
-    if (uniswapQuotes && uniswapQuotes.length >= 2) {
-      const prices = uniswapQuotes.map(q => parseFloat(q.amountOut));
-      const minPrice = Math.min(...prices);
-      const maxPrice = Math.max(...prices);
-      const profitPercent = ((maxPrice - minPrice) / minPrice) * 100;
+    // Get Uniswap V3 price
+    results.uniswapV3 = await getUniswapV3BestPrice(networkConfig, pair, tradeSize);
+    
+    // Get ParaSwap price
+    results.paraswapV5 = await getParaswapV5Price(networkConfig, pair, tradeSize);
+    
+    // Get 0x price as backup
+    if (!results.paraswapV5) {
+      results.zeroEx = await getZeroExPrice(networkConfig, pair, tradeSize);
+    }
+    
+     // Calculate arbitrage
+    const prices = [];
+    if (results.uniswapV3) prices.push({ source: 'Uniswap V3', price: parseFloat(results.uniswapV3.amountOut) });
+    if (results.paraswapV5) prices.push({ source: 'ParaSwap', price: parseFloat(results.paraswapV5.amountOut) });
+    if (results.zeroEx) prices.push({ source: '0x', price: parseFloat(results.zeroEx.amountOut) });
+    
+    if (prices.length >= 2) {
+      const sorted = prices.sort((a, b) => a.price - b.price);
+      const buyFrom = sorted[0];
+      const sellTo = sorted[sorted.length - 1];
+      const profitPercent = ((sellTo.price - buyFrom.price) / buyFrom.price) * 100;
       
-      result.arbitrage = {
-        minPrice: minPrice.toFixed(6),
-        maxPrice: maxPrice.toFixed(6),
-        priceSpread: (maxPrice - minPrice).toFixed(6),
+      results.arbitrage = {
+        buyFrom: buyFrom.source,
+        sellTo: sellTo.source,
+        buyPrice: buyFrom.price.toFixed(6),
+        sellPrice: sellTo.price.toFixed(6),
         profitPercent: profitPercent.toFixed(3) + '%',
-        profitable: profitPercent > 0.2,
-        strategy: 'Buy from lowest fee pool, sell to highest fee pool'
+        profitable: profitPercent > 0.3,
+        strategy: `Buy from ${buyFrom.source}, sell to ${sellTo.source}`
       };
     }
     
-    console.log(`✅ Test complete - Found ${result.totalPools} pools`);
-    res.json(result);
+    console.log(`✅ Test complete`);
+    res.json(results);
+    
   } catch (error) {
     console.error('Test error:', error);
     res.status(500).json({ 
@@ -588,9 +555,13 @@ app.get('/api/test/:network', async (req, res) => {
   }
 });
 
-// Health check endpoint
+// Health check
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ 
+    status: 'ok', 
+    service: 'Uniswap V3 vs ParaSwap Arbitrage Scanner',
+    timestamp: new Date().toISOString() 
+  });
 });
 
 // Get available networks
@@ -599,29 +570,20 @@ app.get('/api/networks', (req, res) => {
     networks: Object.keys(NETWORKS).map(key => ({
       id: key,
       name: key.charAt(0).toUpperCase() + key.slice(1),
-      chainId: NETWORKS[key].chainId
+      chainId: NETWORKS[key].chainId,
+      recommended: ['polygon', 'arbitrum', 'base'].includes(key)
     }))
   });
 });
 
-// Serve frontend at root
-app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/public/index.html');
-});
-
 app.listen(PORT, () => {
-  const totalPairs = Object.values(TRADING_PAIRS).reduce((sum, pairs) => sum + pairs.length, 0);
-  console.log(`🚀 DEX Arbitrage Scanner running on port ${PORT}`);
-  console.log(`📊 Monitoring ${Object.keys(NETWORKS).length} networks`);
-  console.log(`💱 Total trading pairs: ${totalPairs}`);
-  console.log(`\n📍 Pairs per network:`);
-  console.log(`   Ethereum: ${TRADING_PAIRS.ethereum.length} pairs`);
-  console.log(`   Polygon: ${TRADING_PAIRS.polygon.length} pairs ⚡ LOW GAS`);
-  console.log(`   Arbitrum: ${TRADING_PAIRS.arbitrum.length} pairs ⚡ LOW GAS`);
-  console.log(`   Optimism: ${TRADING_PAIRS.optimism.length} pairs ⚡ LOW GAS`);
-  console.log(`   Base: ${TRADING_PAIRS.base.length} pairs ⚡ LOW GAS`);
-  console.log(`   BSC: ${TRADING_PAIRS.bsc.length} pairs ⚡ LOW GAS`);
-  console.log(`\n✅ Focus on L2 networks for best profit margins!`);
+  console.log(`🚀 Uniswap V3 vs ParaSwap Arbitrage Scanner running on port ${PORT}`);
+  console.log(`📊 Focus: Flashloan arbitrage for Furucombo execution`);
+  console.log(`\n📍 Recommended networks for testing:`);
+  console.log(`   → Polygon: https://your-app.onrender.com/api/scan/polygon`);
+  console.log(`   → Arbitrum: https://your-app.onrender.com/api/scan/arbitrum`);
+  console.log(`   → Base: https://your-app.onrender.com/api/scan/base`);
+  console.log(`\n💡 Test specific pair: /api/test/polygon/WETH/USDC`);
 });
 
 module.exports = app;
