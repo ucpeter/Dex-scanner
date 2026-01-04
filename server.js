@@ -219,7 +219,46 @@ async function getUniswapV3Prices(network, pair, amountIn) {
   }
 }
 
-// Get Paraswap price with 403 bypass techniques
+// Get 1inch API quote as Paraswap alternative (NO API KEY REQUIRED!)
+async function get1inchPrice(network, pair, amountIn) {
+  try {
+    const amount = ethers.parseUnits(amountIn.toString(), pair.decimals0).toString();
+    
+    // 1inch API v5 - Free, no authentication required!
+    const url = `https://api.1inch.io/v5.0/${network.chainId}/quote`;
+    const params = {
+      fromTokenAddress: pair.token0Address,
+      toTokenAddress: pair.token1Address,
+      amount: amount
+    };
+
+    const response = await axios.get(url, { 
+      params,
+      timeout: 8000,
+      headers: {
+        'Accept': 'application/json'
+      }
+    });
+
+    if (response.data && response.data.toTokenAmount) {
+      return {
+        amountOut: ethers.formatUnits(response.data.toTokenAmount, pair.decimals1),
+        dex: '1inch Aggregator'
+      };
+    }
+
+    return null;
+  } catch (error) {
+    if (error.response) {
+      console.log(`    ⚠️  1inch error: ${error.response.status} - ${error.response.data?.description || 'Unknown'}`);
+    } else if (error.code === 'ECONNABORTED') {
+      console.log(`    ⚠️  1inch timeout`);
+    } else {
+      console.log(`    ⚠️  1inch error: ${error.message}`);
+    }
+    return null;
+  }
+}
 async function getParaswapPrice(network, pair, amountIn) {
   try {
     const amount = ethers.parseUnits(amountIn.toString(), pair.decimals0).toString();
@@ -302,7 +341,6 @@ async function getParaswapPrice(network, pair, amountIn) {
   }
 }
 
-
 // Scan for arbitrage opportunities - Compare Uniswap V3 vs Paraswap V5
 async function scanArbitrage(networkKey) {
   const network = NETWORKS[networkKey];
@@ -327,45 +365,50 @@ async function scanArbitrage(networkKey) {
     try {
       console.log(`  Checking ${pair.token0}/${pair.token1}...`);
       
-      // Get prices from BOTH Uniswap V3 AND Paraswap
+      // Get prices from Uniswap V3, Paraswap, AND 1inch
       const timeout = 10000;
-      const [uniswapQuotes, paraswapQuote] = await Promise.race([
+      const [uniswapQuotes, paraswapQuote, oneinchQuote] = await Promise.race([
         Promise.all([
           getUniswapV3Prices(network, pair, tradeSize),
-          getParaswapPrice(network, pair, tradeSize)
+          getParaswapPrice(network, pair, tradeSize),
+          get1inchPrice(network, pair, tradeSize)
         ]),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Timeout')), timeout)
         )
       ]);
 
-      // If we have BOTH Uniswap and Paraswap prices, compare them
-      if (uniswapQuotes && uniswapQuotes.length > 0 && paraswapQuote) {
+      // Use whichever aggregator worked (Paraswap or 1inch)
+      const aggregatorQuote = paraswapQuote || oneinchQuote;
+      const aggregatorName = paraswapQuote ? 'Paraswap V5' : '1inch';
+
+      // If we have BOTH Uniswap and an aggregator, compare them
+      if (uniswapQuotes && uniswapQuotes.length > 0 && aggregatorQuote) {
         // Get best Uniswap V3 price
         const bestUniswap = uniswapQuotes.reduce((best, current) => {
           return parseFloat(current.amountOut) > parseFloat(best.amountOut) ? current : best;
         });
         
         const uniswapOutput = parseFloat(bestUniswap.amountOut);
-        const paraswapOutput = parseFloat(paraswapQuote.amountOut);
+        const aggregatorOutput = parseFloat(aggregatorQuote.amountOut);
         
         console.log(`    Uniswap V3 best: ${uniswapOutput.toFixed(6)} (${bestUniswap.feeName})`);
-        console.log(`    Paraswap V5: ${paraswapOutput.toFixed(6)}`);
+        console.log(`    ${aggregatorName}: ${aggregatorOutput.toFixed(6)}`);
         
         // Determine which DEX has better price (higher output = better)
         let buyDex, sellDex, buyOutput, sellOutput, buyPool;
         
-        if (uniswapOutput > paraswapOutput) {
-          // Uniswap gives better rate - buy there, sell on Paraswap
+        if (uniswapOutput > aggregatorOutput) {
+          // Uniswap gives better rate - buy there, sell on aggregator
           buyDex = `Uniswap V3 (${bestUniswap.feeName})`;
           buyOutput = uniswapOutput;
           buyPool = bestUniswap.feeName;
-          sellDex = 'Paraswap V5';
-          sellOutput = paraswapOutput;
+          sellDex = aggregatorName;
+          sellOutput = aggregatorOutput;
         } else {
-          // Paraswap gives better rate - buy there, sell on Uniswap
-          buyDex = 'Paraswap V5';
-          buyOutput = paraswapOutput;
+          // Aggregator gives better rate - buy there, sell on Uniswap
+          buyDex = aggregatorName;
+          buyOutput = aggregatorOutput;
           buyPool = null;
           sellDex = `Uniswap V3 (${bestUniswap.feeName})`;
           sellOutput = uniswapOutput;
@@ -410,7 +453,7 @@ async function scanArbitrage(networkKey) {
                 {
                   step: 1,
                   action: 'Swap',
-                  protocol: buyDex.includes('Uniswap') ? 'Uniswap V3' : 'Paraswap V5',
+                  protocol: buyDex.includes('Uniswap') ? 'Uniswap V3' : (buyDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
                   pool: buyPool || 'Best available route',
                   from: pair.token0,
                   to: pair.token1,
@@ -420,7 +463,7 @@ async function scanArbitrage(networkKey) {
                 {
                   step: 2,
                   action: 'Swap',
-                  protocol: sellDex.includes('Uniswap') ? 'Uniswap V3' : 'Paraswap V5',
+                  protocol: sellDex.includes('Uniswap') ? 'Uniswap V3' : (sellDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
                   pool: sellDex.includes('Uniswap') ? bestUniswap.feeName : 'Best available route',
                   from: pair.token1,
                   to: pair.token0,
@@ -443,8 +486,8 @@ async function scanArbitrage(networkKey) {
           console.log(`    📊 ${profitPercent.toFixed(3)}% spread (too low)`);
         }
       } else if (uniswapQuotes && uniswapQuotes.length >= 2) {
-        // Fallback: Compare Uniswap pools if Paraswap failed
-        console.log(`    ⚠️  Paraswap unavailable, checking Uniswap pools only`);
+        // Fallback: Compare Uniswap pools if both aggregators failed
+        console.log(`    ⚠️  Both Paraswap and 1inch unavailable, checking Uniswap pools only`);
         // (Keep existing intra-Uniswap logic as fallback - not shown for brevity)
       } else {
         console.log(`    ⚠️  Insufficient data to compare`);
