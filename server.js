@@ -1,4 +1,3 @@
-
 // server.js - Real-time DEX Arbitrage Scanner Backend
 // Deploy this on Render as a Node.js Web Service
 
@@ -308,6 +307,7 @@ async function getParaswapPrice(network, pair, amountIn) {
       }
     });
 
+    
     // Check if we got blocked again
     if (response.status === 403) {
       console.log(`    ⚠️  Paraswap 403 blocked (still)`);
