@@ -358,7 +358,7 @@ async function scanArbitrage(networkKey) {
         const estimatedProfit = (tradeSizeUSD * profitPercent / 100).toFixed(2);
         const gasEstimate = network.chainId === 1 ? (15 + Math.random() * 35).toFixed(2) : (0.3 + Math.random() * 2).toFixed(2);
         
-        opportunities.push({
+         opportunities.push({
           network: networkKey,
           chainId: network.chainId,
           pair: `${pair.token0}/${pair.token1}`,
@@ -466,4 +466,3 @@ app.listen(PORT, () => {
 });
 
 module.exports = app;
-```
