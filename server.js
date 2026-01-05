@@ -1,3 +1,4 @@
+
 // server.js - Real-time DEX Arbitrage Scanner Backend
 // Deploy this on Render as a Node.js Web Service
 
@@ -383,47 +384,105 @@ async function scanArbitrage(networkKey) {
 
       // If we have BOTH Uniswap and an aggregator, compare them
       if (uniswapQuotes && uniswapQuotes.length > 0 && aggregatorQuote) {
-        // Get best Uniswap V3 price
+        // Get best Uniswap V3 price for token0 → token1
         const bestUniswap = uniswapQuotes.reduce((best, current) => {
           return parseFloat(current.amountOut) > parseFloat(best.amountOut) ? current : best;
         });
         
-        const uniswapOutput = parseFloat(bestUniswap.amountOut);
-        const aggregatorOutput = parseFloat(aggregatorQuote.amountOut);
+        const uniswapOutput = parseFloat(bestUniswap.amountOut); // token1 amount from 1 token0
+        const aggregatorOutput = parseFloat(aggregatorQuote.amountOut); // token1 amount from 1 token0
         
-        console.log(`    Uniswap V3 best: ${uniswapOutput.toFixed(6)} (${bestUniswap.feeName})`);
-        console.log(`    ${aggregatorName}: ${aggregatorOutput.toFixed(6)}`);
+        console.log(`    Uniswap V3 (${pair.token0} → ${pair.token1}): ${uniswapOutput.toFixed(6)} (${bestUniswap.feeName})`);
+        console.log(`    ${aggregatorName} (${pair.token0} → ${pair.token1}): ${aggregatorOutput.toFixed(6)}`);
         
-        // Determine which DEX has better price (higher output = better)
-        let buyDex, sellDex, buyOutput, sellOutput, buyPool;
+        // Now check REVERSE direction (token1 → token0) to complete the cycle
+        // We need to see which DEX gives better rate going BACK
+        const [uniswapReverseQuotes, aggregatorReverseQuote] = await Promise.all([
+          getUniswapV3Prices(network, {
+            ...pair,
+            token0: pair.token1,
+            token1: pair.token0,
+            token0Address: pair.token1Address,
+            token1Address: pair.token0Address,
+            decimals0: pair.decimals1,
+            decimals1: pair.decimals0
+          }, tradeSize),
+          aggregatorName === 'Paraswap V5' ? 
+            getParaswapPrice(network, {
+              ...pair,
+              token0: pair.token1,
+              token1: pair.token0,
+              token0Address: pair.token1Address,
+              token1Address: pair.token0Address,
+              decimals0: pair.decimals1,
+              decimals1: pair.decimals0
+            }, tradeSize) :
+            get1inchPrice(network, {
+              ...pair,
+              token0: pair.token1,
+              token1: pair.token0,
+              token0Address: pair.token1Address,
+              token1Address: pair.token0Address,
+              decimals0: pair.decimals1,
+              decimals1: pair.decimals0
+            }, tradeSize)
+        ]);
+
+        if (!uniswapReverseQuotes || !aggregatorReverseQuote) {
+          console.log(`    ⚠️  Could not get reverse prices for arbitrage cycle`);
+          continue;
+        }
+
+        const bestUniswapReverse = uniswapReverseQuotes.reduce((best, current) => {
+          return parseFloat(current.amountOut) > parseFloat(best.amountOut) ? current : best;
+        });
         
-        if (uniswapOutput > aggregatorOutput) {
-          // Uniswap gives better rate - buy there, sell on aggregator
-          buyDex = `Uniswap V3 (${bestUniswap.feeName})`;
-          buyOutput = uniswapOutput;
-          buyPool = bestUniswap.feeName;
-          sellDex = aggregatorName;
-          sellOutput = aggregatorOutput;
-        } else {
-          // Aggregator gives better rate - buy there, sell on Uniswap
+        const uniswapReverseOutput = parseFloat(bestUniswapReverse.amountOut);
+        const aggregatorReverseOutput = parseFloat(aggregatorReverseQuote.amountOut);
+        
+        console.log(`    Uniswap V3 (${pair.token1} → ${pair.token0}): ${uniswapReverseOutput.toFixed(6)}`);
+        console.log(`    ${aggregatorName} (${pair.token1} → ${pair.token0}): ${aggregatorReverseOutput.toFixed(6)}`);
+        
+        // Calculate complete arbitrage cycles:
+        // Cycle 1: Start with 1 token0 → aggregator → get token1 → uniswap back → get token0
+        const cycle1 = aggregatorOutput * uniswapReverseOutput; // Final token0 amount
+        
+        // Cycle 2: Start with 1 token0 → uniswap → get token1 → aggregator back → get token0
+        const cycle2 = uniswapOutput * aggregatorReverseOutput; // Final token0 amount
+        
+        console.log(`    Cycle 1 (${aggregatorName} → Uniswap): ${cycle1.toFixed(6)} ${pair.token0}`);
+        console.log(`    Cycle 2 (Uniswap → ${aggregatorName}): ${cycle2.toFixed(6)} ${pair.token0}`);
+        
+        // Find the profitable cycle
+        let buyDex, sellDex, finalAmount, buyOutput, sellOutput;
+        
+        if (cycle1 > 1.003) { // At least 0.3% profit after fees
+          // Profitable: Buy on aggregator, sell on Uniswap
           buyDex = aggregatorName;
+          sellDex = `Uniswap V3 (${bestUniswapReverse.feeName})`;
+          finalAmount = cycle1;
           buyOutput = aggregatorOutput;
-          buyPool = null;
-          sellDex = `Uniswap V3 (${bestUniswap.feeName})`;
-          sellOutput = uniswapOutput;
+          sellOutput = uniswapReverseOutput;
+        } else if (cycle2 > 1.003) { // At least 0.3% profit after fees
+          // Profitable: Buy on Uniswap, sell on aggregator
+          buyDex = `Uniswap V3 (${bestUniswap.feeName})`;
+          sellDex = aggregatorName;
+          finalAmount = cycle2;
+          buyOutput = uniswapOutput;
+          sellOutput = aggregatorReverseOutput;
+        } else {
+          console.log(`    📊 No profitable cycle found (best: ${Math.max(cycle1, cycle2).toFixed(6)})`);
+          continue;
         }
         
-        // Calculate profit
-        const profitPercent = ((buyOutput - sellOutput) / sellOutput) * 100;
+        const profitPercent = ((finalAmount - 1) * 100);
         
-        if (profitPercent > 0.3) {
-          console.log(`    ✅ FOUND: ${profitPercent.toFixed(3)}% profit!`);
-          console.log(`       Buy on ${buyDex}: ${buyOutput.toFixed(6)}`);
-          console.log(`       Sell on ${sellDex}: ${sellOutput.toFixed(6)}`);
-          
-          const tradeSizeUSD = 10000;
-          const estimatedProfit = (tradeSizeUSD * profitPercent / 100).toFixed(2);
-          const gasEstimate = network.chainId === 1 ? (15 + Math.random() * 35).toFixed(2) : (0.3 + Math.random() * 2).toFixed(2);
+        console.log(`    ✅ FOUND: ${profitPercent.toFixed(3)}% profit!`);
+        console.log(`       Buy on ${buyDex}, Sell on ${sellDex}`);
+        
+        const tradeSizeUSD = 10000;
+        const estimatedProfit = (tradeSizeUSD * profitPercent / 100).toFixed(2);
+        const gasEstimate = network.chainId === 1 ? (15 + Math.random() * 35).toFixed(2) : (0.3 + Math.random() * 2).toFixed(2);
           
           opportunities.push({
             network: networkKey,
@@ -453,21 +512,21 @@ async function scanArbitrage(networkKey) {
                   step: 1,
                   action: 'Swap',
                   protocol: buyDex.includes('Uniswap') ? 'Uniswap V3' : (buyDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
-                  pool: buyPool || 'Best available route',
+                  pool: buyDex.includes('Uniswap') ? buyDex.match(/\(([^)]+)\)/)[1] : 'Best available route',
                   from: pair.token0,
                   to: pair.token1,
                   expectedOutput: `${buyOutput.toFixed(6)} ${pair.token1}`,
-                  note: `Better rate: ${buyOutput.toFixed(6)} per ${pair.token0}`
+                  note: `Better rate for ${pair.token0} → ${pair.token1}`
                 },
                 {
                   step: 2,
                   action: 'Swap',
                   protocol: sellDex.includes('Uniswap') ? 'Uniswap V3' : (sellDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
-                  pool: sellDex.includes('Uniswap') ? bestUniswap.feeName : 'Best available route',
+                  pool: sellDex.includes('Uniswap') ? sellDex.match(/\(([^)]+)\)/)[1] : 'Best available route',
                   from: pair.token1,
                   to: pair.token0,
-                  expectedOutput: `${sellOutput.toFixed(6)} ${pair.token0}`,
-                  note: 'Complete arbitrage cycle'
+                  expectedOutput: `${finalAmount.toFixed(6)} ${pair.token0}`,
+                  note: `Complete cycle - return to ${pair.token0}`
                 },
                 {
                   step: 3,
@@ -478,7 +537,7 @@ async function scanArbitrage(networkKey) {
               ],
               netProfit: `$${(parseFloat(estimatedProfit) - parseFloat(gasEstimate)).toFixed(2)} (after gas)`,
               gasEstimate: `$${gasEstimate}`,
-              explanation: `${buyDex} gives better rate (${buyOutput.toFixed(6)}) vs ${sellDex} (${sellOutput.toFixed(6)}). Profit: ${profitPercent.toFixed(3)}%`
+              explanation: `Complete cycle: 1 ${pair.token0} → ${buyOutput.toFixed(6)} ${pair.token1} (${buyDex}) → ${finalAmount.toFixed(6)} ${pair.token0} (${sellDex}). Net: ${profitPercent.toFixed(3)}%`
             }
           });
         } else {
