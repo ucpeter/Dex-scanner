@@ -1,4 +1,3 @@
-
 // server.js - Real-time DEX Arbitrage Scanner Backend
 // Deploy this on Render as a Node.js Web Service
 
@@ -483,66 +482,63 @@ async function scanArbitrage(networkKey) {
         const tradeSizeUSD = 10000;
         const estimatedProfit = (tradeSizeUSD * profitPercent / 100).toFixed(2);
         const gasEstimate = network.chainId === 1 ? (15 + Math.random() * 35).toFixed(2) : (0.3 + Math.random() * 2).toFixed(2);
-          
-          opportunities.push({
+        
+        opportunities.push({
+          network: networkKey,
+          chainId: network.chainId,
+          pair: `${pair.token0}/${pair.token1}`,
+          buyDex,
+          sellDex,
+          buyPrice: buyOutput.toFixed(6),
+          sellPrice: sellOutput.toFixed(6),
+          profitPercent: profitPercent.toFixed(3),
+          estimatedProfit: estimatedProfit,
+          gasEstimate: gasEstimate,
+          tradeSize: tradeSizeUSD,
+          timestamp: new Date().toISOString(),
+          furucomboStrategy: {
             network: networkKey,
             chainId: network.chainId,
-            pair: `${pair.token0}/${pair.token1}`,
-            buyDex,
-            sellDex,
-            buyPrice: buyOutput.toFixed(6),
-            sellPrice: sellOutput.toFixed(6),
-            profitPercent: profitPercent.toFixed(3),
-            estimatedProfit: estimatedProfit,
-            gasEstimate: gasEstimate,
-            tradeSize: tradeSizeUSD,
-            timestamp: new Date().toISOString(),
-            furucomboStrategy: {
-              network: networkKey,
-              chainId: network.chainId,
-              flashloan: {
-                protocol: 'Aave V3',
-                asset: pair.token0,
-                assetAddress: pair.token0Address,
-                amount: tradeSizeUSD,
-                fee: '~$9 (0.09%)'
+            flashloan: {
+              protocol: 'Aave V3',
+              asset: pair.token0,
+              assetAddress: pair.token0Address,
+              amount: tradeSizeUSD,
+              fee: '~$9 (0.09%)'
+            },
+            steps: [
+              {
+                step: 1,
+                action: 'Swap',
+                protocol: buyDex.includes('Uniswap') ? 'Uniswap V3' : (buyDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
+                pool: buyDex.includes('Uniswap') ? buyDex.match(/\(([^)]+)\)/)[1] : 'Best available route',
+                from: pair.token0,
+                to: pair.token1,
+                expectedOutput: `${buyOutput.toFixed(6)} ${pair.token1}`,
+                note: `Better rate for ${pair.token0} → ${pair.token1}`
               },
-              steps: [
-                {
-                  step: 1,
-                  action: 'Swap',
-                  protocol: buyDex.includes('Uniswap') ? 'Uniswap V3' : (buyDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
-                  pool: buyDex.includes('Uniswap') ? buyDex.match(/\(([^)]+)\)/)[1] : 'Best available route',
-                  from: pair.token0,
-                  to: pair.token1,
-                  expectedOutput: `${buyOutput.toFixed(6)} ${pair.token1}`,
-                  note: `Better rate for ${pair.token0} → ${pair.token1}`
-                },
-                {
-                  step: 2,
-                  action: 'Swap',
-                  protocol: sellDex.includes('Uniswap') ? 'Uniswap V3' : (sellDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
-                  pool: sellDex.includes('Uniswap') ? sellDex.match(/\(([^)]+)\)/)[1] : 'Best available route',
-                  from: pair.token1,
-                  to: pair.token0,
-                  expectedOutput: `${finalAmount.toFixed(6)} ${pair.token0}`,
-                  note: `Complete cycle - return to ${pair.token0}`
-                },
-                {
-                  step: 3,
-                  action: 'Repay Flashloan',
-                  protocol: 'Aave V3',
-                  amount: 'borrowed amount + 0.09% fee ($9)'
-                }
-              ],
-              netProfit: `$${(parseFloat(estimatedProfit) - parseFloat(gasEstimate)).toFixed(2)} (after gas)`,
-              gasEstimate: `$${gasEstimate}`,
-              explanation: `Complete cycle: 1 ${pair.token0} → ${buyOutput.toFixed(6)} ${pair.token1} (${buyDex}) → ${finalAmount.toFixed(6)} ${pair.token0} (${sellDex}). Net: ${profitPercent.toFixed(3)}%`
-            }
-          });
-        } else {
-          console.log(`    📊 ${profitPercent.toFixed(3)}% spread (too low)`);
-        }
+              {
+                step: 2,
+                action: 'Swap',
+                protocol: sellDex.includes('Uniswap') ? 'Uniswap V3' : (sellDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
+                pool: sellDex.includes('Uniswap') ? sellDex.match(/\(([^)]+)\)/)[1] : 'Best available route',
+                from: pair.token1,
+                to: pair.token0,
+                expectedOutput: `${finalAmount.toFixed(6)} ${pair.token0}`,
+                note: `Complete cycle - return to ${pair.token0}`
+              },
+              {
+                step: 3,
+                action: 'Repay Flashloan',
+                protocol: 'Aave V3',
+                amount: 'borrowed amount + 0.09% fee ($9)'
+              }
+            ],
+            netProfit: `$${(parseFloat(estimatedProfit) - parseFloat(gasEstimate)).toFixed(2)} (after gas)`,
+            gasEstimate: `$${gasEstimate}`,
+            explanation: `Complete cycle: 1 ${pair.token0} → ${buyOutput.toFixed(6)} ${pair.token1} (${buyDex}) → ${finalAmount.toFixed(6)} ${pair.token0} (${sellDex}). Net: ${profitPercent.toFixed(3)}%`
+          }
+        });
       } else if (uniswapQuotes && uniswapQuotes.length >= 2) {
         // Fallback: Compare Uniswap pools if both aggregators failed
         console.log(`    ⚠️  Both Paraswap and 1inch unavailable, checking Uniswap pools only`);
