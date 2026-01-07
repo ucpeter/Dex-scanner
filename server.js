@@ -17,52 +17,58 @@ app.use(express.static('public'));
 const PORT = process.env.PORT || 3001;
 const NETWORKS = {
   ethereum: {
-    rpc: process.env.ETHEREUM_RPC || 'https://eth.llamarpc.com ',
+    rpc: process.env.ETHEREUM_RPC || 'https://eth.llamarpc.com',
     chainId: 1,
-    paraswapAPI: 'https://apiv5.paraswap.io ',
+    paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: '0x1F98431c8aD98523631AE4a59f267346ea31F984',
     quoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e',
-    poolDataProvider: '0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3'
+    poolDataProvider: '0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3',
+    pool: '0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4e2'
   },
   polygon: {
-    rpc: process.env.POLYGON_RPC || 'https://polygon-rpc.com ',
+    rpc: process.env.POLYGON_RPC || 'https://polygon-rpc.com',
     chainId: 137,
-    paraswapAPI: 'https://apiv5.paraswap.io ',
+    paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: '0x1F98431c8aD98523631AE4a59f267346ea31F984',
     quoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e',
-    poolDataProvider: '0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654'
+    poolDataProvider: '0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654',
+    pool: '0x794a61358D6845594F94dc1DB02A252b5b4814aD'
   },
   arbitrum: {
-    rpc: process.env.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc ',
+    rpc: process.env.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc',
     chainId: 42161,
-    paraswapAPI: 'https://apiv5.paraswap.io ',
+    paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: '0x1F98431c8aD98523631AE4a59f267346ea31F984',
     quoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e',
-    poolDataProvider: '0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654'
+    poolDataProvider: '0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654',
+    pool: '0x794a61358D6845594F94dc1DB02A252b5b4814aD'
   },
   optimism: {
-    rpc: process.env.OPTIMISM_RPC || 'https://mainnet.optimism.io ',
+    rpc: process.env.OPTIMISM_RPC || 'https://mainnet.optimism.io',
     chainId: 10,
-    paraswapAPI: 'https://apiv5.paraswap.io ',
+    paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: '0x1F98431c8aD98523631AE4a59f267346ea31F984',
     quoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e',
-    poolDataProvider: '0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654'
+    poolDataProvider: '0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654',
+    pool: '0x794a61358D6845594F94dc1DB02A252b5b4814aD'
   },
   base: {
-    rpc: process.env.BASE_RPC || 'https://mainnet.base.org ',
+    rpc: process.env.BASE_RPC || 'https://mainnet.base.org',
     chainId: 8453,
-    paraswapAPI: 'https://apiv5.paraswap.io ',
+    paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: '0x33128a8fC17869897dcE68Ed026d694621f6FDfD',
     quoterV2: '0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a',
-    poolDataProvider: '0xd82a47fdebB5bf5329b09441C3DaB4b5df2153Ad'
+    poolDataProvider: '0xd82a47fdebB5bf5329b09441C3DaB4b5df2153Ad',
+    pool: '0xA238Dd80C8e26a0deee0276CF0D36DDd32C7EaF3'
   },
   gnosis: {
-    rpc: process.env.GNOSIS_RPC || 'https://rpc.gnosischain.com ',
+    rpc: process.env.GNOSIS_RPC || 'https://rpc.gnosischain.com',
     chainId: 100,
-    paraswapAPI: 'https://apiv5.paraswap.io ',
+    paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: '0x1F98431c8aD98523631AE4a59f267346ea31F984',
     quoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e',
-    poolDataProvider: '0xF1F5acB596568895393cB5E4D0452D6592A2fA70'
+    poolDataProvider: '0xF1F5acB596568895393cB5E4D0452D6592A2fA70',
+    pool: '0x71595b4a67d0eda38a1a1fa41b68660193de2dcd'
   }
 };
 
@@ -83,7 +89,7 @@ const TRADING_PAIRS = {
     { token0: 'Aave', token1: 'WETH', token0Address: '0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
     { token0: 'CRV', token1: 'WETH', token0Address: '0xD533a949740bb3306d119CC777fa900bA034cd52', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
     { token0: 'LDO', token1: 'WETH', token0Address: '0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
-    { token0: 'SNX', token1: 'WETH', token0Address: '0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F', token1Address: '0xC02aaA39b223FE8D0a0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
+    { token0: 'SNX', token1: 'WETH', token0Address: '0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
     
     // DEX Tokens
     { token0: 'BAL', token1: 'WETH', token0Address: '0xba100000625a3754423978a60c9317c58a424e3D', token1Address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', decimals0: 18, decimals1: 18 },
@@ -150,7 +156,7 @@ const QUOTER_ABI = [
 
 // Aave PoolDataProvider ABI for getReservesList
 const POOL_DATA_PROVIDER_ABI = [
-  'function getReservesList() external view returns (address[] memory)'
+  'function getReservesList(address provider) external view returns (address[] memory)'
 ];
 
 // Function to get Aave V3 reserves for validation
@@ -160,7 +166,7 @@ async function getAaveReserves(network) {
       staticNetwork: true
     });
     const dataProvider = new ethers.Contract(network.poolDataProvider, POOL_DATA_PROVIDER_ABI, provider);
-    const reserves = await dataProvider.getReservesList();
+    const reserves = await dataProvider.getReservesList(network.pool);
     return reserves.map(r => r.toLowerCase());
   } catch (error) {
     console.log(`    ⚠️  Aave reserves fetch error: ${error.message}`);
