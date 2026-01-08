@@ -20,54 +20,48 @@ const NETWORKS = {
     rpc: process.env.ETHEREUM_RPC || 'https://eth.llamarpc.com',
     chainId: 1,
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapV3Factory: ethers.getAddress('0x1F98431c8aD98523631AE4a59f267346ea31F984'),
-    quoterV2: ethers.getAddress('0x61fFE014bA17989E743c5F6cB21bF9697530B21e'),
-    poolDataProvider: ethers.getAddress('0x91c0eA31b49B5BdcD547E7ebf3d1c8b8D2F25c04'),
-    pool: ethers.getAddress('0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4e2')
+    uniswapV3Factory: ethers.getAddress('0x1f98431c8ad98523631ae4a59f267346ea31f984'),
+    quoterV2: ethers.getAddress('0x61ffe014ba17989e743c5f6cb21bf9697530b21e'),
+    pool: ethers.getAddress('0x87870bca3f3fd6335c3f4ce8392d69350b4fa4e2')
   },
   polygon: {
     rpc: process.env.POLYGON_RPC || 'https://polygon-rpc.com',
     chainId: 137,
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapV3Factory: ethers.getAddress('0x1F98431c8aD98523631AE4a59f267346ea31F984'),
-    quoterV2: ethers.getAddress('0x61fFE014bA17989E743c5F6cB21bF9697530B21e'),
-    poolDataProvider: ethers.getAddress('0x91c0eA31b49B5BdcD547E7ebf3d1c8b8D2F25c04'),
-    pool: ethers.getAddress('0x794a61358D6845594F94dc1DB02A252b5b4814aD')
+    uniswapV3Factory: ethers.getAddress('0x1f98431c8ad98523631ae4a59f267346ea31f984'),
+    quoterV2: ethers.getAddress('0x61ffe014ba17989e743c5f6cb21bf9697530b21e'),
+    pool: ethers.getAddress('0x794a61358d6845594f94dc1db02a252b5b4814ad')
   },
   arbitrum: {
     rpc: process.env.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc',
     chainId: 42161,
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapV3Factory: ethers.getAddress('0x1F98431c8aD98523631AE4a59f267346ea31F984'),
-    quoterV2: ethers.getAddress('0x61fFE014bA17989E743c5F6cB21bF9697530B21e'),
-    poolDataProvider: ethers.getAddress('0x91c0eA31b49B5BdcD547E7ebf3d1c8b8D2F25c04'),
-    pool: ethers.getAddress('0x794a61358D6845594F94dc1DB02A252b5b4814aD')
+    uniswapV3Factory: ethers.getAddress('0x1f98431c8ad98523631ae4a59f267346ea31f984'),
+    quoterV2: ethers.getAddress('0x61ffe014ba17989e743c5f6cb21bf9697530b21e'),
+    pool: ethers.getAddress('0x794a61358d6845594f94dc1db02a252b5b4814ad')
   },
   optimism: {
     rpc: process.env.OPTIMISM_RPC || 'https://mainnet.optimism.io',
     chainId: 10,
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapV3Factory: ethers.getAddress('0x1F98431c8aD98523631AE4a59f267346ea31F984'),
-    quoterV2: ethers.getAddress('0x61fFE014bA17989E743c5F6cB21bF9697530B21e'),
-    poolDataProvider: ethers.getAddress('0x91c0eA31b49B5BdcD547E7ebf3d1c8b8D2F25c04'),
-    pool: ethers.getAddress('0x794a61358D6845594F94dc1DB02A252b5b4814aD')
+    uniswapV3Factory: ethers.getAddress('0x1f98431c8ad98523631ae4a59f267346ea31f984'),
+    quoterV2: ethers.getAddress('0x61ffe014ba17989e743c5f6cb21bf9697530b21e'),
+    pool: ethers.getAddress('0x794a61358d6845594f94dc1db02a252b5b4814ad')
   },
   base: {
     rpc: process.env.BASE_RPC || 'https://mainnet.base.org',
     chainId: 8453,
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapV3Factory: ethers.getAddress('0x33128a8fC17869897dcE68Ed026d694621f6FDfD'),
-    quoterV2: ethers.getAddress('0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'),
-    poolDataProvider: ethers.getAddress('0x91c0eA31b49B5BdcD547E7ebf3d1c8b8D2F25c04'),
-    pool: ethers.getAddress('0xA238Dd80C8e26a0deee0276CF0D36DDd32C7EaF3')
+    uniswapV3Factory: ethers.getAddress('0x33128a8fc17869897dce68ed026d694621f6fdfd'),
+    quoterV2: ethers.getAddress('0x3d4e44eb1374240ce5f1b871ab261cd16335b76a'),
+    pool: ethers.getAddress('0xa238dd80c8e26a0deee0276cf0d36ddd32c7eaf3')
   },
   gnosis: {
     rpc: process.env.GNOSIS_RPC || 'https://rpc.gnosischain.com',
     chainId: 100,
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapV3Factory: ethers.getAddress('0x1F98431c8aD98523631AE4a59f267346ea31F984'),
-    quoterV2: ethers.getAddress('0x61fFE014bA17989E743c5F6cB21bF9697530B21e'),
-    poolDataProvider: ethers.getAddress('0xF1F5acB596568895393cB5E4D0452D6592A2fA70'),
+    uniswapV3Factory: ethers.getAddress('0x1f98431c8ad98523631ae4a59f267346ea31f984'),
+    quoterV2: ethers.getAddress('0x61ffe014ba17989e743c5f6cb21bf9697530b21e'),
     pool: ethers.getAddress('0x71595b4a67d0eda38a1a1fa41b68660193de2dcd')
   }
 };
@@ -76,67 +70,67 @@ const NETWORKS = {
 const TRADING_PAIRS = {
   ethereum: [
     // Major pairs
-    { token0: 'WETH', token1: 'USDC', token0Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), token1Address: ethers.getAddress('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'), decimals0: 18, decimals1: 6 },
-    { token0: 'WETH', token1: 'USDT', token0Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), token1Address: ethers.getAddress('0xdAC17F958D2ee523a2206206994597C13D831ec7'), decimals0: 18, decimals1: 6 },
-    { token0: 'WETH', token1: 'DAI', token0Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), token1Address: ethers.getAddress('0x6B175474E89094C44Da98b954EedeAC495271d0F'), decimals0: 18, decimals1: 18 },
-    { token0: 'WBTC', token1: 'WETH', token0Address: ethers.getAddress('0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 8, decimals1: 18 },
-    { token0: 'USDC', token1: 'USDT', token0Address: ethers.getAddress('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'), token1Address: ethers.getAddress('0xdAC17F958D2ee523a2206206994597C13D831ec7'), decimals0: 6, decimals1: 6 },
-    { token0: 'USDC', token1: 'DAI', token0Address: ethers.getAddress('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'), token1Address: ethers.getAddress('0x6B175474E89094C44Da98b954EedeAC495271d0F'), decimals0: 6, decimals1: 18 },
+    { token0: 'WETH', token1: 'USDC', token0Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), token1Address: ethers.getAddress('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'), decimals0: 18, decimals1: 6 },
+    { token0: 'WETH', token1: 'USDT', token0Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), token1Address: ethers.getAddress('0xdac17f958d2ee523a2206206994597c13d831ec7'), decimals0: 18, decimals1: 6 },
+    { token0: 'WETH', token1: 'DAI', token0Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), token1Address: ethers.getAddress('0x6b175474e89094c44da98b954eedeac495271d0f'), decimals0: 18, decimals1: 18 },
+    { token0: 'WBTC', token1: 'WETH', token0Address: ethers.getAddress('0x2260fac5e5542a773aa44fbcfedf7c193bc2c599'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 8, decimals1: 18 },
+    { token0: 'USDC', token1: 'USDT', token0Address: ethers.getAddress('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'), token1Address: ethers.getAddress('0xdac17f958d2ee523a2206206994597c13d831ec7'), decimals0: 6, decimals1: 6 },
+    { token0: 'USDC', token1: 'DAI', token0Address: ethers.getAddress('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'), token1Address: ethers.getAddress('0x6b175474e89094c44da98b954eedeac495271d0f'), decimals0: 6, decimals1: 18 },
     
     // DeFi Blue Chips
-    { token0: 'Chainlink', token1: 'WETH', token0Address: ethers.getAddress('0x514910771AF9Ca656af840dff83E8264EcF986CA'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
-    { token0: 'UNI', token1: 'WETH', token0Address: ethers.getAddress('0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
-    { token0: 'Aave', token1: 'WETH', token0Address: ethers.getAddress('0x7Fc66500c84A76Ad7e9c93437bFc5Ac33E2DDaE9'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
-    { token0: 'CRV', token1: 'WETH', token0Address: ethers.getAddress('0xD533a949740bb3306d119CC777fa900bA034cd52'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
-    { token0: 'LDO', token1: 'WETH', token0Address: ethers.getAddress('0x5A98FcBEA516Cf06857215779Fd812CA3beF1B32'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
-    { token0: 'SNX', token1: 'WETH', token0Address: ethers.getAddress('0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
+    { token0: 'Chainlink', token1: 'WETH', token0Address: ethers.getAddress('0x514910771af9ca656af840dff83e8264ecf986ca'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
+    { token0: 'UNI', token1: 'WETH', token0Address: ethers.getAddress('0x1f9840a85d5af5bf1d1762f925bdaddc4201f984'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
+    { token0: 'Aave', token1: 'WETH', token0Address: ethers.getAddress('0x7fc66500c84a76ad7e9c93437bfc5ac33e2ddae9'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
+    { token0: 'CRV', token1: 'WETH', token0Address: ethers.getAddress('0xd533a949740bb3306d119cc777fa900ba034cd52'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
+    { token0: 'LDO', token1: 'WETH', token0Address: ethers.getAddress('0x5a98fcbea516cf06857215779fd812ca3bef1b32'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
+    { token0: 'SNX', token1: 'WETH', token0Address: ethers.getAddress('0xc011a73ee8576fb46f5e1c5751ca3b9fe0af2a6f'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
     
     // DEX Tokens
-    { token0: 'BAL', token1: 'WETH', token0Address: ethers.getAddress('0xba100000625a3754423978a60c9317c58a424e3D'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
-    { token0: '1inch', token1: 'WETH', token0Address: ethers.getAddress('0x111111111117dC0aa78b770fA6A738034120C302'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
+    { token0: 'BAL', token1: 'WETH', token0Address: ethers.getAddress('0xba100000625a3754423978a60c9317c58a424e3d'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
+    { token0: '1inch', token1: 'WETH', token0Address: ethers.getAddress('0x111111111117dc0aa78b770fa6a738034120c302'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
     
     // L2 & Gaming Tokens
-    { token0: 'ENS', token1: 'WETH', token0Address: ethers.getAddress('0xC18360217D8F7Ab5e7c516566761Ea12Ce7F9D72'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
+    { token0: 'ENS', token1: 'WETH', token0Address: ethers.getAddress('0xc18360217d8f7ab5e7c516566761ea12ce7f9d72'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
     
     // Stablecoins and LSTs
-    { token0: 'wstETH', token1: 'WETH', token0Address: ethers.getAddress('0x7f39C581F595b53c5cb19bD0b3f8da6c935e2Ca0'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
-    { token0: 'rETH', token1: 'WETH', token0Address: ethers.getAddress('0xae78736Cd615f374d308512eA083ff8A26e6651b'), token1Address: ethers.getAddress('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'), decimals0: 18, decimals1: 18 },
-    { token0: 'cbBTC', token1: 'WBTC', token0Address: ethers.getAddress('0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf'), token1Address: ethers.getAddress('0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599'), decimals0: 8, decimals1: 8 },
-    { token0: 'USDe', token1: 'USDC', token0Address: ethers.getAddress('0x4c9EDD5852cd905f086C759E8383e09bff1E68B3'), token1Address: ethers.getAddress('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'), decimals0: 18, decimals1: 6 },
-    { token0: 'FRAX', token1: 'USDC', token0Address: ethers.getAddress('0x853d955aCEf822Db058eb8505911ed77AA2e7cD5'), token1Address: ethers.getAddress('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'), decimals0: 18, decimals1: 6 },
-    { token0: 'LUSD', token1: 'USDC', token0Address: ethers.getAddress('0x5f98805A4E8be255a32880FDeC7f6728C6568bA0'), token1Address: ethers.getAddress('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'), decimals0: 18, decimals1: 6 },
-    { token0: 'GHO', token1: 'USDC', token0Address: ethers.getAddress('0x40D16FC0246aD3160Ccc09B8D0D3A2cD28aE6C2f'), token1Address: ethers.getAddress('0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'), decimals0: 18, decimals1: 6 }
+    { token0: 'wstETH', token1: 'WETH', token0Address: ethers.getAddress('0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
+    { token0: 'rETH', token1: 'WETH', token0Address: ethers.getAddress('0xae78736cd615f374d308512ea083ff8a26e6651b'), token1Address: ethers.getAddress('0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'), decimals0: 18, decimals1: 18 },
+    { token0: 'cbBTC', token1: 'WBTC', token0Address: ethers.getAddress('0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf'), token1Address: ethers.getAddress('0x2260fac5e5542a773aa44fbcfedf7c193bc2c599'), decimals0: 8, decimals1: 8 },
+    { token0: 'USDe', token1: 'USDC', token0Address: ethers.getAddress('0x4c9edd5852cd905f086c759e8383e09bff1e68b3'), token1Address: ethers.getAddress('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'), decimals0: 18, decimals1: 6 },
+    { token0: 'FRAX', token1: 'USDC', token0Address: ethers.getAddress('0x853d955acef822db058eb8505911ed77aa2e7cd5'), token1Address: ethers.getAddress('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'), decimals0: 18, decimals1: 6 },
+    { token0: 'LUSD', token1: 'USDC', token0Address: ethers.getAddress('0x5f98805a4e8be255a32880fdec7f6728c6568ba0'), token1Address: ethers.getAddress('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'), decimals0: 18, decimals1: 6 },
+    { token0: 'GHO', token1: 'USDC', token0Address: ethers.getAddress('0x40d16fc0246ad3160ccc09b8d0d3a2cd28ae6c2f'), token1Address: ethers.getAddress('0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'), decimals0: 18, decimals1: 6 }
   ],
   
   polygon: [
-    { token0: 'wMATIC', token1: 'USDC', token0Address: ethers.getAddress('0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'), token1Address: ethers.getAddress('0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'), decimals0: 18, decimals1: 6 },
-    { token0: 'wMATIC', token1: 'USDT', token0Address: ethers.getAddress('0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'), token1Address: ethers.getAddress('0xc2132D05D31c914a87C6611C10748AEb04B58e8F'), decimals0: 18, decimals1: 6 },
-    { token0: 'wETH', token1: 'USDC', token0Address: ethers.getAddress('0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'), token1Address: ethers.getAddress('0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174'), decimals0: 18, decimals1: 6 },
-    { token0: 'wBTC', token1: 'wETH', token0Address: ethers.getAddress('0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6'), token1Address: ethers.getAddress('0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619'), decimals0: 8, decimals1: 18 },
-    { token0: 'LINK', token1: 'wMATIC', token0Address: ethers.getAddress('0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39'), token1Address: ethers.getAddress('0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'), decimals0: 18, decimals1: 18 },
-    { token0: 'Aave', token1: 'wMATIC', token0Address: ethers.getAddress('0xD6DF932A45C0f255f85145f286eA0b292B21C90B'), token1Address: ethers.getAddress('0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270'), decimals0: 18, decimals1: 18 }
+    { token0: 'wMATIC', token1: 'USDC', token0Address: ethers.getAddress('0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270'), token1Address: ethers.getAddress('0x2791bca1f2de4661ed88a30c99a7a9449aa84174'), decimals0: 18, decimals1: 6 },
+    { token0: 'wMATIC', token1: 'USDT', token0Address: ethers.getAddress('0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270'), token1Address: ethers.getAddress('0xc2132d05d31c914a87c6611c10748aeb04b58e8f'), decimals0: 18, decimals1: 6 },
+    { token0: 'wETH', token1: 'USDC', token0Address: ethers.getAddress('0x7ceb23fd6bc0add59e62ac25578270cff1b9f619'), token1Address: ethers.getAddress('0x2791bca1f2de4661ed88a30c99a7a9449aa84174'), decimals0: 18, decimals1: 6 },
+    { token0: 'wBTC', token1: 'wETH', token0Address: ethers.getAddress('0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6'), token1Address: ethers.getAddress('0x7ceb23fd6bc0add59e62ac25578270cff1b9f619'), decimals0: 8, decimals1: 18 },
+    { token0: 'LINK', token1: 'wMATIC', token0Address: ethers.getAddress('0x53e0bca35ec356bd5dddfabbd1fc0fd03fabad39'), token1Address: ethers.getAddress('0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270'), decimals0: 18, decimals1: 18 },
+    { token0: 'Aave', token1: 'wMATIC', token0Address: ethers.getAddress('0xd6df932a45c0f255f85145f286ea0b292b21c90b'), token1Address: ethers.getAddress('0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270'), decimals0: 18, decimals1: 18 }
   ],
   
   arbitrum: [
-    { token0: 'WETH', token1: 'USDC', token0Address: ethers.getAddress('0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'), token1Address: ethers.getAddress('0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8'), decimals0: 18, decimals1: 6 },
-    { token0: 'WETH', token1: 'USDT', token0Address: ethers.getAddress('0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'), token1Address: ethers.getAddress('0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9'), decimals0: 18, decimals1: 6 },
-    { token0: 'wBTC', token1: 'WETH', token0Address: ethers.getAddress('0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f'), token1Address: ethers.getAddress('0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'), decimals0: 8, decimals1: 18 },
-    { token0: 'ARB', token1: 'WETH', token0Address: ethers.getAddress('0x912CE59144191C1204E64559FE8253a0e49E6548'), token1Address: ethers.getAddress('0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'), decimals0: 18, decimals1: 18 },
-    { token0: 'LINK', token1: 'WETH', token0Address: ethers.getAddress('0xf97f4df75117a78c1A5a0DBb814Af92458539FB4'), token1Address: ethers.getAddress('0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'), decimals0: 18, decimals1: 18 }
+    { token0: 'WETH', token1: 'USDC', token0Address: ethers.getAddress('0x82af49447d8a07e3bd95bd0d56f35241523fbab1'), token1Address: ethers.getAddress('0xff970a61a04b1ca14834a43f5de4533ebddb5cc8'), decimals0: 18, decimals1: 6 },
+    { token0: 'WETH', token1: 'USDT', token0Address: ethers.getAddress('0x82af49447d8a07e3bd95bd0d56f35241523fbab1'), token1Address: ethers.getAddress('0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9'), decimals0: 18, decimals1: 6 },
+    { token0: 'wBTC', token1: 'WETH', token0Address: ethers.getAddress('0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f'), token1Address: ethers.getAddress('0x82af49447d8a07e3bd95bd0d56f35241523fbab1'), decimals0: 8, decimals1: 18 },
+    { token0: 'ARB', token1: 'WETH', token0Address: ethers.getAddress('0x912ce59144191c1204e64559fe8253a0e49e6548'), token1Address: ethers.getAddress('0x82af49447d8a07e3bd95bd0d56f35241523fbab1'), decimals0: 18, decimals1: 18 },
+    { token0: 'LINK', token1: 'WETH', token0Address: ethers.getAddress('0xf97f4df75117a78c1a5a0dbb814af92458539fb4'), token1Address: ethers.getAddress('0x82af49447d8a07e3bd95bd0d56f35241523fbab1'), decimals0: 18, decimals1: 18 }
   ],
   
   optimism: [
-    { token0: 'WETH', token1: 'USDC', token0Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), token1Address: ethers.getAddress('0x7F5c764cBc14f9669B88837ca1490cCa17c31607'), decimals0: 18, decimals1: 6 },
-    { token0: 'WETH', token1: 'DAI', token0Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), token1Address: ethers.getAddress('0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1'), decimals0: 18, decimals1: 18 },
+    { token0: 'WETH', token1: 'USDC', token0Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), token1Address: ethers.getAddress('0x7f5c764cbc14f9669b88837ca1490cca17c31607'), decimals0: 18, decimals1: 6 },
+    { token0: 'WETH', token1: 'DAI', token0Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), token1Address: ethers.getAddress('0xda10009cbd5d07dd0cecc66161fc93d7c9000da1'), decimals0: 18, decimals1: 18 },
     { token0: 'OP', token1: 'WETH', token0Address: ethers.getAddress('0x4200000000000000000000000000000000000042'), token1Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), decimals0: 18, decimals1: 18 },
-    { token0: 'wBTC', token1: 'WETH', token0Address: ethers.getAddress('0x68f180fcCe6836688e9084f035309E29Bf0A2095'), token1Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), decimals0: 8, decimals1: 18 },
-    { token0: 'LINK', token1: 'WETH', token0Address: ethers.getAddress('0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6'), token1Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), decimals0: 18, decimals1: 18 }
+    { token0: 'wBTC', token1: 'WETH', token0Address: ethers.getAddress('0x68f180fcce6836688e9084f035309e29bf0a2095'), token1Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), decimals0: 8, decimals1: 18 },
+    { token0: 'LINK', token1: 'WETH', token0Address: ethers.getAddress('0x350a791bfc2c21f9ed5d10980dad2e2638ffa7f6'), token1Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), decimals0: 18, decimals1: 18 }
   ],
   
   base: [
-    { token0: 'WETH', token1: 'USDC', token0Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), token1Address: ethers.getAddress('0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'), decimals0: 18, decimals1: 6 },
+    { token0: 'WETH', token1: 'USDC', token0Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), token1Address: ethers.getAddress('0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'), decimals0: 18, decimals1: 6 },
     { token0: 'cbBTC', token1: 'WETH', token0Address: ethers.getAddress('0xcbb7c0000ab88b473b1f5afd9ef808440eed33bf'), token1Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), decimals0: 8, decimals1: 18 },
-    { token0: 'cbETH', token1: 'WETH', token0Address: ethers.getAddress('0x2Ae3F1Ec7F1F5012CFEab0185bfc7aa3cf0DEc22'), token1Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), decimals0: 18, decimals1: 18 }
+    { token0: 'cbETH', token1: 'WETH', token0Address: ethers.getAddress('0x2ae3f1ec7f1f5012cfeab0185bfc7aa3cf0dec22'), token1Address: ethers.getAddress('0x4200000000000000000000000000000000000006'), decimals0: 18, decimals1: 18 }
   ],
   
   gnosis: [
@@ -154,9 +148,9 @@ const QUOTER_ABI = [
   'function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'
 ];
 
-// Aave PoolDataProvider ABI for getReservesList
-const POOL_DATA_PROVIDER_ABI = [
-  'function getReservesList(address provider) external view returns (address[] memory)'
+// Aave Pool ABI for getReservesList
+const POOL_ABI = [
+  'function getReservesList() external view returns (address[] memory)'
 ];
 
 // Function to get Aave V3 reserves for validation
@@ -165,8 +159,8 @@ async function getAaveReserves(network) {
     const provider = new ethers.JsonRpcProvider(network.rpc, network.chainId, {
       staticNetwork: true
     });
-    const dataProvider = new ethers.Contract(network.poolDataProvider, POOL_DATA_PROVIDER_ABI, provider);
-    const reserves = await dataProvider.getReservesList(network.pool);
+    const pool = new ethers.Contract(network.pool, POOL_ABI, provider);
+    const reserves = await pool.getReservesList();
     return reserves.map(r => r.toLowerCase());
   } catch (error) {
     console.log(`    ⚠️  Aave reserves fetch error: ${error.message}`);
