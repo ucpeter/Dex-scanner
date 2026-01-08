@@ -22,7 +22,7 @@ const NETWORKS = {
     paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: ethers.getAddress('0x1F98431c8aD98523631AE4a59f267346ea31F984'),
     quoterV2: ethers.getAddress('0x61fFE014bA17989E743c5F6cB21bF9697530B21e'),
-    poolDataProvider: ethers.getAddress('0x7B4EB56E7CD4b454BA8ff71E4518426369a138a3'),
+    poolDataProvider: ethers.getAddress('0x91c0eA31b49B5BdcD547E7ebf3d1c8b8D2F25c04'),
     pool: ethers.getAddress('0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4e2')
   },
   polygon: {
@@ -31,7 +31,7 @@ const NETWORKS = {
     paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: ethers.getAddress('0x1F98431c8aD98523631AE4a59f267346ea31F984'),
     quoterV2: ethers.getAddress('0x61fFE014bA17989E743c5F6cB21bF9697530B21e'),
-    poolDataProvider: ethers.getAddress('0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654'),
+    poolDataProvider: ethers.getAddress('0x91c0eA31b49B5BdcD547E7ebf3d1c8b8D2F25c04'),
     pool: ethers.getAddress('0x794a61358D6845594F94dc1DB02A252b5b4814aD')
   },
   arbitrum: {
@@ -40,7 +40,7 @@ const NETWORKS = {
     paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: ethers.getAddress('0x1F98431c8aD98523631AE4a59f267346ea31F984'),
     quoterV2: ethers.getAddress('0x61fFE014bA17989E743c5F6cB21bF9697530B21e'),
-    poolDataProvider: ethers.getAddress('0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654'),
+    poolDataProvider: ethers.getAddress('0x91c0eA31b49B5BdcD547E7ebf3d1c8b8D2F25c04'),
     pool: ethers.getAddress('0x794a61358D6845594F94dc1DB02A252b5b4814aD')
   },
   optimism: {
@@ -49,7 +49,7 @@ const NETWORKS = {
     paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: ethers.getAddress('0x1F98431c8aD98523631AE4a59f267346ea31F984'),
     quoterV2: ethers.getAddress('0x61fFE014bA17989E743c5F6cB21bF9697530B21e'),
-    poolDataProvider: ethers.getAddress('0x69FA688f1Dc47d4B5d8029D5a35FB7a548310654'),
+    poolDataProvider: ethers.getAddress('0x91c0eA31b49B5BdcD547E7ebf3d1c8b8D2F25c04'),
     pool: ethers.getAddress('0x794a61358D6845594F94dc1DB02A252b5b4814aD')
   },
   base: {
@@ -58,7 +58,7 @@ const NETWORKS = {
     paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapV3Factory: ethers.getAddress('0x33128a8fC17869897dcE68Ed026d694621f6FDfD'),
     quoterV2: ethers.getAddress('0x3d4e44Eb1374240CE5F1B871ab261CD16335B76a'),
-    poolDataProvider: ethers.getAddress('0xd82a47fdebB5bf5329b09441C3DaB4b5df2153Ad'),
+    poolDataProvider: ethers.getAddress('0x91c0eA31b49B5BdcD547E7ebf3d1c8b8D2F25c04'),
     pool: ethers.getAddress('0xA238Dd80C8e26a0deee0276CF0D36DDd32C7EaF3')
   },
   gnosis: {
@@ -225,51 +225,11 @@ async function getUniswapV3Prices(network, pair, amountIn) {
   }
 }
 
-// Get 1inch API quote as Paraswap alternative (NO API KEY REQUIRED!)
-async function get1inchPrice(network, pair, amountIn) {
-  try {
-    const amount = ethers.parseUnits(amountIn.toString(), pair.decimals0).toString();
-    
-    // 1inch API v5 - Free, no authentication required!
-    const url = `https://api.1inch.io/v5.0/${network.chainId}/quote`;
-    const params = {
-      fromTokenAddress: pair.token0Address,
-      toTokenAddress: pair.token1Address,
-      amount: amount
-    };
-
-    const response = await axios.get(url, { 
-      params,
-      timeout: 8000,
-      headers: {
-        'Accept': 'application/json'
-      }
-    });
-
-    if (response.data && response.data.toTokenAmount) {
-      return {
-        amountOut: ethers.formatUnits(response.data.toTokenAmount, pair.decimals1),
-        dex: '1inch Aggregator'
-      };
-    }
-
-    return null;
-  } catch (error) {
-    if (error.response) {
-      console.log(`    ⚠️  1inch error: ${error.response.status} - ${error.response.data?.description || 'Unknown'}`);
-    } else if (error.code === 'ECONNABORTED') {
-      console.log(`    ⚠️  1inch timeout`);
-    } else {
-      console.log(`    ⚠️  1inch error: ${error.message}`);
-    }
-    return null;
-  }
-}
 async function getParaswapPrice(network, pair, amountIn) {
   try {
     const amount = ethers.parseUnits(amountIn.toString(), pair.decimals0).toString();
     
-    const url = `${network.paraswapAPI}/prices/`;
+    const url = `${network.paraswapAPI}/prices`;
     const params = {
       srcToken: pair.token0Address,
       destToken: pair.token1Address,
@@ -280,51 +240,11 @@ async function getParaswapPrice(network, pair, amountIn) {
       side: 'SELL'
     };
 
-    // 403 BYPASS TECHNIQUES
-    const bypassHeaders = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      // Mimic real browser User-Agent (critical for bypass)
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      // Add referer to look like browser request
-      'Referer': 'https://paraswap.io/ ',
-      'Origin': 'https://paraswap.io ',
-      // Add these headers to bypass IP blocking
-      'X-Forwarded-For': '127.0.0.1',
-      'X-Real-IP': '127.0.0.1',
-      'X-Client-IP': '127.0.0.1',
-      // Connection headers
-      'Connection': 'keep-alive',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Accept-Language': 'en-US,en;q=0.9',
-      // Cache control
-      'Cache-Control': 'no-cache',
-      'Pragma': 'no-cache'
-    };
-
     const response = await axios.get(url, { 
       params,
-      timeout: 8000,
-      headers: bypassHeaders,
-      // Important: Follow redirects
-      maxRedirects: 5,
-      // Validate status - don't throw on 4xx/5xx immediately
-      validateStatus: function (status) {
-        return status >= 200 && status < 500;
-      }
+      timeout: 8000
     });
  
-      // Check if we got blocked again
-    if (response.status === 403) {
-      console.log(`    ⚠️  Paraswap 403 blocked (still)`);
-      return null;
-    }
-
-    if (response.status === 429) {
-      console.log(`    ⚠️  Paraswap rate limited`);
-      return null;
-    }
-
     if (response.data && response.data.priceRoute) {
       const destAmount = response.data.priceRoute.destAmount;
       return {
@@ -385,32 +305,29 @@ async function scanArbitrage(networkKey) {
     try {
       console.log(`  Checking \( {pair.token0}/ \){pair.token1}...`);
       
-      // Get prices from Uniswap V3, Paraswap, AND 1inch
+      // Get prices from Uniswap V3 and Paraswap
       const timeout = 10000;
-      const [uniswapQuotes, paraswapQuote, oneinchQuote] = await Promise.race([
+      const [uniswapQuotes, paraswapQuote] = await Promise.race([
         Promise.all([
           getUniswapV3Prices(network, pair, tradeSize),
-          getParaswapPrice(network, pair, tradeSize),
-          get1inchPrice(network, pair, tradeSize)
+          getParaswapPrice(network, pair, tradeSize)
         ]),
         new Promise((_, reject) => 
           setTimeout(() => reject(new Error('Timeout')), timeout)
         )
       ]);
 
-      // Use whichever aggregator worked (Paraswap or 1inch)
-      const aggregatorQuote = paraswapQuote || oneinchQuote;
-      const aggregatorName = paraswapQuote ? 'Paraswap V5' : '1inch';
+      const aggregatorName = 'Paraswap V5';
 
-      // If we have BOTH Uniswap and an aggregator, compare them
-      if (uniswapQuotes && uniswapQuotes.length > 0 && aggregatorQuote) {
+      // If we have BOTH Uniswap and aggregator, compare them
+      if (uniswapQuotes && uniswapQuotes.length > 0 && paraswapQuote) {
         // Get best Uniswap V3 price for token0 → token1
         const bestUniswap = uniswapQuotes.reduce((best, current) => {
           return parseFloat(current.amountOut) > parseFloat(best.amountOut) ? current : best;
         });
         
         const uniswapOutput = parseFloat(bestUniswap.amountOut); // token1 amount from 1 token0
-        const aggregatorOutput = parseFloat(aggregatorQuote.amountOut); // token1 amount from 1 token0
+        const aggregatorOutput = parseFloat(paraswapQuote.amountOut); // token1 amount from 1 token0
         
         console.log(`    Uniswap V3 (${pair.token0} → ${pair.token1}): \( {uniswapOutput.toFixed(6)} ( \){bestUniswap.feeName})`);
         console.log(`    \( {aggregatorName} ( \){pair.token0} → ${pair.token1}): ${aggregatorOutput.toFixed(6)}`);
@@ -427,25 +344,15 @@ async function scanArbitrage(networkKey) {
             decimals0: pair.decimals1,
             decimals1: pair.decimals0
           }, 1),  // Use 1 for reverse to get rate per 1 paired token
-          aggregatorName === 'Paraswap V5' ? 
-            getParaswapPrice(network, {
-              ...pair,
-              token0: pair.token1,
-              token1: pair.token0,
-              token0Address: pair.token1Address,
-              token1Address: pair.token0Address,
-              decimals0: pair.decimals1,
-              decimals1: pair.decimals0
-            }, 1) :
-            get1inchPrice(network, {
-              ...pair,
-              token0: pair.token1,
-              token1: pair.token0,
-              token0Address: pair.token1Address,
-              token1Address: pair.token0Address,
-              decimals0: pair.decimals1,
-              decimals1: pair.decimals0
-            }, 1)
+          getParaswapPrice(network, {
+            ...pair,
+            token0: pair.token1,
+            token1: pair.token0,
+            token0Address: pair.token1Address,
+            token1Address: pair.token0Address,
+            decimals0: pair.decimals1,
+            decimals1: pair.decimals0
+          }, 1)
         ]);
 
         if (!uniswapReverseQuotes || !aggregatorReverseQuote) {
@@ -531,7 +438,7 @@ async function scanArbitrage(networkKey) {
               {
                 step: 1,
                 action: 'Swap',
-                protocol: buyDex.includes('Uniswap') ? 'Uniswap V3' : (buyDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
+                protocol: buyDex.includes('Uniswap') ? 'Uniswap V3' : 'Paraswap V5',
                 pool: buyDex.includes('Uniswap') ? buyDex.match(/\(([^)]+)\)/)[1] : 'Best available route',
                 from: pair.token0,
                 to: pair.token1,
@@ -542,7 +449,7 @@ async function scanArbitrage(networkKey) {
               {
                 step: 2,
                 action: 'Swap',
-                protocol: sellDex.includes('Uniswap') ? 'Uniswap V3' : (sellDex.includes('Paraswap') ? 'Paraswap V5' : '1inch'),
+                protocol: sellDex.includes('Uniswap') ? 'Uniswap V3' : 'Paraswap V5',
                 pool: sellDex.includes('Uniswap') ? sellDex.match(/\(([^)]+)\)/)[1] : 'Best available route',
                 from: pair.token1,
                 to: pair.token0,
@@ -563,9 +470,9 @@ async function scanArbitrage(networkKey) {
           }
         });
       } else if (uniswapQuotes && uniswapQuotes.length >= 2) {
-        // Fallback: Compare Uniswap pools if both aggregators failed
-        console.log(`    ⚠️  Both Paraswap and 1inch unavailable, checking Uniswap pools only`);
-        // (Keep existing intra-Uniswap logic as fallback - not shown for brevity)
+        // Fallback: Compare Uniswap pools if Paraswap failed
+        console.log(`    ⚠️  Paraswap unavailable, checking Uniswap pools only`);
+        // Implement intra-Uniswap arbitrage if needed
       } else {
         console.log(`    ⚠️  Insufficient data to compare`);
       }
