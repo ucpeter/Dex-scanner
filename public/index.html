@@ -1,164 +1,506 @@
-<!DOCTYPE html><html lang="en">
+<!DOCTYPE html>
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Real-Time DEX Arbitrage Scanner</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+    .pulse { animation: pulse 2s infinite; }
+    .token-icon {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 1px solid #4b5563;
+    }
+    .scanning {
+      background: linear-gradient(90deg, #059669, #10b981, #34d399, #059669);
+      background-size: 300% 100%;
+      animation: gradient 2s infinite linear;
+    }
+    @keyframes gradient {
+      0% { background-position: 0% 50%; }
+      100% { background-position: 100% 50%; }
+    }
+  </style>
 </head>
 <body class="bg-gray-900">
-  <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
-    <div class="max-w-7xl mx-auto"><!-- Header -->
-  <div class="text-center mb-8">
-    <h1 class="text-4xl font-bold text-white mb-2">🔍 Real-Time DEX Arbitrage Scanner</h1>
-    <p class="text-gray-300">Uniswap V3 ↔ Paraswap V5 Arbitrage</p>
-  </div>
-
-  <!-- Network Selector -->
-  <div class="mb-6 bg-slate-800 rounded-lg p-6 border border-slate-700">
-    <h3 class="text-xl font-semibold text-white mb-4">Select Network</h3>
-    <div class="grid grid-cols-2 md:grid-cols-3 gap-3" id="networkButtons"></div>
-    <p id="networkWarning" class="text-sm text-yellow-400 mt-3 hidden">⚠️ Stop scanning to switch networks</p>
-  </div>
-
-  <!-- Stats -->
-  <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-      <p class="text-gray-400 text-sm">Network</p>
-      <p class="text-xl font-bold text-white" id="currentNetwork">Arbitrum</p>
-    </div>
-    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-      <p class="text-gray-400 text-sm">Opportunities</p>
-      <p class="text-2xl font-bold text-white" id="totalOpps">0</p>
-    </div>
-    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-      <p class="text-gray-400 text-sm">Avg Net Profit</p>
-      <p class="text-2xl font-bold text-green-400" id="avgProfit">$0.00</p>
-    </div>
-    <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-      <p class="text-gray-400 text-sm">Scans</p>
-      <p class="text-2xl font-bold text-purple-400" id="scansCount">0</p>
-    </div>
-  </div>
-
-  <!-- Control Button -->
-  <div class="flex justify-center mb-6">
-    <button id="scanButton" class="px-8 py-3 rounded-lg font-semibold text-white bg-green-600 hover:bg-green-700">
-      ▶️ Start Scanning
-    </button>
-  </div>
-
-  <!-- Status -->
-  <div id="statusMessage" class="mb-6 hidden rounded-lg p-4 border">
-    <p id="statusText" class="text-center text-white"></p>
-  </div>
-
-  <!-- Opportunities -->
-  <div class="bg-slate-800 rounded-lg p-6 border border-slate-700">
-    <h3 class="text-xl font-semibold text-white mb-4">📊 Live Arbitrage Opportunities</h3>
-    <div id="opportunitiesList" class="text-gray-400 text-center py-12">No opportunities yet</div>
-  </div>
-
-</div>
-
-  </div><script>
-let selectedNetwork = 'arbitrum';
-let isScanning = false;
-let scanInterval = null;
-let opportunities = [];
-let stats = { total: 0, scans: 0, avgProfit: 0 };
-
-const NETWORKS = {
-  arbitrum: { name: 'Arbitrum', color: 'bg-cyan-600', chainId: 42161 },
-  polygon: { name: 'Polygon', color: 'bg-purple-600', chainId: 137 },
-  optimism: { name: 'Optimism', color: 'bg-red-600', chainId: 10 }
-};
-
-const API = window.location.origin;
-
-function initNetworkButtons() {
-  const c = document.getElementById('networkButtons');
-  Object.entries(NETWORKS).forEach(([k, n]) => {
-    const b = document.createElement('button');
-    b.id = `net-${k}`;
-    b.className = `p-4 rounded-lg border-2 ${k===selectedNetwork ? n.color+' border-white text-white':'bg-slate-700 border-slate-600 text-gray-300'}`;
-    b.innerHTML = `<div class="font-semibold">${n.name}</div><div class="text-xs">Chain ${n.chainId}</div>`;
-    b.onclick = () => selectNetwork(k);
-    c.appendChild(b);
-  });
-}
-
-function selectNetwork(net){
-  if(isScanning) return;
-  selectedNetwork = net;
-  document.getElementById('currentNetwork').textContent = NETWORKS[net].name;
-  opportunities = [];
-  stats = { total:0, scans:0, avgProfit:0 };
-  updateStats();
-  render();
-  initNetworkButtons();
-}
-
-async function scan(){
-  setStatus('Scanning blockchain…','blue');
-  try{
-    const r = await fetch(`${API}/api/scan/${selectedNetwork}`);
-    const d = await r.json();
-    stats.scans++;
-    if(d.success && d.opportunities.length){
-      d.opportunities.forEach(o=>o.id=Date.now()+Math.random());
-      opportunities = [...d.opportunities, ...opportunities].slice(0,25);
-      stats.total += d.opportunities.length;
-      stats.avgProfit = (opportunities.reduce((a,b)=>a+parseFloat(b.netProfitUSD),0)/opportunities.length).toFixed(2);
-      setStatus(`Found ${d.opportunities.length} opportunities`,'green');
-    } else setStatus('No opportunities found','gray');
-    updateStats();
-    render();
-  }catch(e){ setStatus(e.message,'red'); }
-}
-
-function updateStats(){
-  document.getElementById('totalOpps').textContent = stats.total;
-  document.getElementById('avgProfit').textContent = `$${stats.avgProfit}`;
-  document.getElementById('scansCount').textContent = stats.scans;
-}
-
-function setStatus(t,c){
-  const m=document.getElementById('statusMessage');
-  m.className=`mb-6 rounded-lg p-4 border bg-${c}-800 border-${c}-700`;
-  document.getElementById('statusText').textContent=t;
-  m.classList.remove('hidden');
-  setTimeout(()=>m.classList.add('hidden'),3000);
-}
-
-function render(){
-  const c=document.getElementById('opportunitiesList');
-  if(!opportunities.length){ c.innerHTML='No opportunities yet'; return; }
-  c.innerHTML = opportunities.map(o=>`
-    <div class="bg-slate-700 p-4 rounded-lg border border-slate-600 mb-4">
-      <div class="flex justify-between">
-        <div class="flex items-center gap-2">
-          <img src="${o.tokenIn.icon}" class="w-6 h-6" />
-          <img src="${o.tokenOut.icon}" class="w-6 h-6" />
-          <span class="font-bold text-white">${o.pair}</span>
-        </div>
-        <div class="text-right">
-          <p class="text-green-400 font-bold">+$${o.netProfitUSD}</p>
-          <p class="text-xs text-gray-400">Trade $${o.tradeSizeUSD}</p>
+  <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 md:p-6">
+    <div class="max-w-7xl mx-auto">
+      
+      <!-- Header -->
+      <div class="text-center mb-8">
+        <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">
+          <i class="fas fa-search-dollar mr-2"></i>Real-Time DEX Arbitrage Scanner
+        </h1>
+        <p class="text-gray-300">Uniswap V3 ↔ Paraswap V5 Arbitrage Opportunities</p>
+        <div class="mt-2 text-sm text-gray-400">
+          <span id="backendStatus" class="inline-flex items-center">
+            <span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
+            Backend: Disconnected
+          </span>
         </div>
       </div>
-      <div class="text-sm text-gray-300 mt-2">Buy: ${o.dexBuy} → Sell: ${o.dexSell}</div>
-    </div>`).join('');
-}
 
-function toggle(){
-  const b=document.getElementById('scanButton');
-  if(isScanning){ clearInterval(scanInterval); isScanning=false; b.textContent='▶️ Start Scanning'; b.className='px-8 py-3 rounded-lg font-semibold text-white bg-green-600'; }
-  else{ isScanning=true; b.textContent='⏸️ Stop Scanning'; b.className='px-8 py-3 rounded-lg font-semibold text-white bg-red-600'; scan(); scanInterval=setInterval(scan,10000); }
-}
+      <!-- Network Selector -->
+      <div class="mb-6 bg-slate-800/70 backdrop-blur-sm rounded-xl p-5 border border-slate-700 shadow-lg">
+        <h3 class="text-lg md:text-xl font-semibold text-white mb-4">
+          <i class="fas fa-network-wired mr-2"></i>Select Network
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" id="networkButtons"></div>
+        <p id="networkWarning" class="text-sm text-yellow-400 mt-3 hidden">
+          <i class="fas fa-exclamation-triangle mr-1"></i>Stop scanning to switch networks
+        </p>
+      </div>
 
-document.addEventListener('DOMContentLoaded',()=>{
-  initNetworkButtons();
-  document.getElementById('scanButton').onclick=toggle;
-});
-</script></body>
-        </html>
+      <!-- Stats Dashboard -->
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4 mb-6">
+        <div class="bg-slate-800/70 backdrop-blur-sm rounded-xl p-4 border border-slate-700 shadow-lg">
+          <p class="text-gray-400 text-sm mb-1"><i class="fas fa-globe mr-1"></i>Network</p>
+          <p class="text-lg md:text-xl font-bold text-white truncate" id="currentNetwork">Arbitrum</p>
+        </div>
+        <div class="bg-slate-800/70 backdrop-blur-sm rounded-xl p-4 border border-slate-700 shadow-lg">
+          <p class="text-gray-400 text-sm mb-1"><i class="fas fa-bolt mr-1"></i>Opportunities</p>
+          <p class="text-lg md:text-2xl font-bold text-white" id="totalOpps">0</p>
+        </div>
+        <div class="bg-slate-800/70 backdrop-blur-sm rounded-xl p-4 border border-slate-700 shadow-lg">
+          <p class="text-gray-400 text-sm mb-1"><i class="fas fa-money-bill-wave mr-1"></i>Avg Net Profit</p>
+          <p class="text-lg md:text-2xl font-bold text-green-400" id="avgProfit">$0.00</p>
+        </div>
+        <div class="bg-slate-800/70 backdrop-blur-sm rounded-xl p-4 border border-slate-700 shadow-lg">
+          <p class="text-gray-400 text-sm mb-1"><i class="fas fa-sync-alt mr-1"></i>Scans</p>
+          <p class="text-lg md:text-2xl font-bold text-purple-400" id="scansCount">0</p>
+        </div>
+      </div>
+
+      <!-- Control Panel -->
+      <div class="mb-6 bg-slate-800/70 backdrop-blur-sm rounded-xl p-5 border border-slate-700 shadow-lg">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div class="flex items-center gap-3">
+            <div class="w-3 h-3 rounded-full bg-green-500" id="scanIndicator"></div>
+            <div class="text-white">
+              <span id="scanStatus">Ready to scan</span>
+              <span id="scanTimer" class="text-sm text-gray-400 ml-2 hidden">Next scan in: <span id="countdown">10</span>s</span>
+            </div>
+          </div>
+          <div class="flex gap-3">
+            <button id="singleScanButton" class="px-6 py-2.5 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all">
+              <i class="fas fa-search mr-2"></i>Single Scan
+            </button>
+            <button id="scanButton" class="px-6 py-2.5 rounded-lg font-semibold text-white bg-green-600 hover:bg-green-700 transition-all">
+              <i class="fas fa-play mr-2"></i>Start Auto-Scan
+            </button>
+          </div>
+        </div>
+        <div class="mt-4 text-sm text-gray-400">
+          <p><i class="fas fa-info-circle mr-1"></i>Scanning all tokens on network. Each scan takes 30-60 seconds.</p>
+        </div>
+      </div>
+
+      <!-- Status Message -->
+      <div id="statusMessage" class="mb-6 hidden rounded-xl p-4 border">
+        <div class="flex items-center">
+          <i id="statusIcon" class="fas fa-info-circle mr-3 text-lg"></i>
+          <p id="statusText" class="text-white"></p>
+        </div>
+      </div>
+
+      <!-- Opportunities Table -->
+      <div class="bg-slate-800/70 backdrop-blur-sm rounded-xl p-5 border border-slate-700 shadow-lg">
+        <div class="flex justify-between items-center mb-5">
+          <h3 class="text-lg md:text-xl font-semibold text-white">
+            <i class="fas fa-chart-line mr-2"></i>Live Arbitrage Opportunities
+          </h3>
+          <div class="text-sm text-gray-400" id="lastUpdate">Last scan: Never</div>
+        </div>
+        
+        <div class="overflow-x-auto rounded-lg border border-slate-700">
+          <table class="min-w-full divide-y divide-slate-700">
+            <thead class="bg-slate-800">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Pair</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Direction</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Size</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Profit</th>
+                <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Action</th>
+              </tr>
+            </thead>
+            <tbody id="opportunitiesList" class="bg-slate-800/50 divide-y divide-slate-700">
+              <tr>
+                <td colspan="5" class="px-4 py-12 text-center text-gray-400">
+                  <i class="fas fa-search fa-2x mb-3"></i>
+                  <p>No opportunities found yet. Start scanning to find arbitrage opportunities.</p>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        
+        <div class="mt-4 text-sm text-gray-400">
+          <p><i class="fas fa-lightbulb mr-1"></i>Opportunities sorted by highest profit. Minimum profit: $5.00</p>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="mt-8 text-center text-gray-500 text-sm">
+        <p>Real-Time DEX Arbitrage Scanner • Scanning Uniswap V3 vs Paraswap V5</p>
+        <p class="mt-1">Total tokens scanned per network: Arbitrum (70+), Polygon (70+), Optimism (40+)</p>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // Configuration - IMPORTANT: Update this URL to your backend
+    const BACKEND_URL = 'https://your-backend-service.onrender.com'; // Change this to your Render backend URL
+    // const BACKEND_URL = 'http://localhost:3001'; // For local testing
+    
+    // Application state
+    let selectedNetwork = 'arbitrum';
+    let isScanning = false;
+    let scanInterval = null;
+    let countdownInterval = null;
+    let opportunities = [];
+    let stats = { 
+      total: 0, 
+      scans: 0, 
+      avgProfit: 0,
+      lastScanTime: null
+    };
+
+    // Network configuration
+    const NETWORKS = {
+      arbitrum: { 
+        name: 'Arbitrum', 
+        color: 'bg-cyan-600', 
+        borderColor: 'border-cyan-500',
+        chainId: 42161,
+        icon: 'fas fa-bolt'
+      },
+      polygon: { 
+        name: 'Polygon', 
+        color: 'bg-purple-600', 
+        borderColor: 'border-purple-500',
+        chainId: 137,
+        icon: 'fas fa-gem'
+      },
+      optimism: { 
+        name: 'Optimism', 
+        color: 'bg-red-600', 
+        borderColor: 'border-red-500',
+        chainId: 10,
+        icon: 'fas fa-rocket'
+      }
+    };
+
+    // Initialize the application
+    document.addEventListener('DOMContentLoaded', () => {
+      initNetworkButtons();
+      checkBackendConnection();
+      
+      // Event listeners
+      document.getElementById('scanButton').onclick = toggleAutoScan;
+      document.getElementById('singleScanButton').onclick = performSingleScan;
+      
+      // Load initial network
+      selectNetwork(selectedNetwork);
+    });
+
+    // Check backend connection
+    async function checkBackendConnection() {
+      const statusEl = document.getElementById('backendStatus');
+      try {
+        const response = await fetch(`${BACKEND_URL}/health`, { timeout: 5000 });
+        if (response.ok) {
+          statusEl.innerHTML = `<span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Backend: Connected`;
+          console.log('Backend connection successful');
+          return true;
+        }
+      } catch (error) {
+        console.error('Backend connection failed:', error);
+      }
+      
+      statusEl.innerHTML = `<span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span>Backend: Disconnected`;
+      setStatus('Cannot connect to backend server', 'red');
+      return false;
+    }
+
+    // Initialize network selection buttons
+    function initNetworkButtons() {
+      const container = document.getElementById('networkButtons');
+      container.innerHTML = '';
+      
+      Object.entries(NETWORKS).forEach(([key, network]) => {
+        const button = document.createElement('button');
+        button.id = `net-${key}`;
+        button.className = `p-4 rounded-xl border-2 transition-all ${key === selectedNetwork ? 
+          `${network.color} ${network.borderColor} text-white` : 
+          'bg-slate-700 border-slate-600 text-gray-300 hover:bg-slate-600'}`;
+        button.innerHTML = `
+          <div class="flex items-center justify-center gap-2">
+            <i class="${network.icon}"></i>
+            <div>
+              <div class="font-semibold">${network.name}</div>
+              <div class="text-xs mt-1">Chain ${network.chainId}</div>
+            </div>
+          </div>`;
+        button.onclick = () => selectNetwork(key);
+        container.appendChild(button);
+      });
+    }
+
+    // Select network
+    function selectNetwork(network) {
+      if (isScanning) {
+        document.getElementById('networkWarning').classList.remove('hidden');
+        setTimeout(() => {
+          document.getElementById('networkWarning').classList.add('hidden');
+        }, 3000);
+        return;
+      }
+      
+      selectedNetwork = network;
+      document.getElementById('currentNetwork').textContent = NETWORKS[network].name;
+      opportunities = [];
+      stats = { total: 0, scans: 0, avgProfit: 0, lastScanTime: null };
+      updateStats();
+      renderOpportunities();
+      initNetworkButtons();
+      setStatus(`Switched to ${NETWORKS[network].name} network`, 'blue');
+    }
+
+    // Perform a single scan
+    async function performSingleScan() {
+      if (isScanning) return;
+      
+      const connected = await checkBackendConnection();
+      if (!connected) return;
+      
+      setStatus(`Scanning ${NETWORKS[selectedNetwork].name} for opportunities...`, 'blue');
+      document.getElementById('scanStatus').textContent = 'Scanning...';
+      document.getElementById('scanIndicator').classList.add('pulse');
+      
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/scan/${selectedNetwork}`);
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        stats.scans++;
+        
+        if (data.success) {
+          stats.lastScanTime = new Date();
+          document.getElementById('lastUpdate').textContent = `Last scan: ${formatTime(stats.lastScanTime)}`;
+          
+          if (data.opportunities && data.opportunities.length > 0) {
+            // Add unique IDs to opportunities
+            const newOpps = data.opportunities.map(opp => ({
+              ...opp,
+              id: Date.now() + Math.random(),
+              timestamp: new Date().toISOString()
+            }));
+            
+            // Merge with existing opportunities (keep only latest 50)
+            opportunities = [...newOpps, ...opportunities]
+              .slice(0, 50)
+              .sort((a, b) => parseFloat(b.profitUSD || b.netProfitUSD) - parseFloat(a.profitUSD || a.netProfitUSD));
+            
+            stats.total += newOpps.length;
+            stats.avgProfit = opportunities.length > 0 ? 
+              (opportunities.reduce((sum, opp) => sum + parseFloat(opp.profitUSD || opp.netProfitUSD || 0), 0) / opportunities.length).toFixed(2) : 
+              '0.00';
+            
+            setStatus(`Found ${newOpps.length} opportunities on ${NETWORKS[selectedNetwork].name}`, 'green');
+          } else {
+            opportunities = []; // Clear old opportunities if new scan found none
+            setStatus('No arbitrage opportunities found', 'yellow');
+          }
+          
+          updateStats();
+          renderOpportunities();
+        } else {
+          setStatus(data.error || 'Scan failed', 'red');
+        }
+      } catch (error) {
+        console.error('Scan error:', error);
+        setStatus(`Scan failed: ${error.message}`, 'red');
+      } finally {
+        document.getElementById('scanStatus').textContent = 'Ready to scan';
+        document.getElementById('scanIndicator').classList.remove('pulse');
+      }
+    }
+
+    // Toggle auto-scan
+    function toggleAutoScan() {
+      const scanButton = document.getElementById('scanButton');
+      
+      if (isScanning) {
+        // Stop scanning
+        clearInterval(scanInterval);
+        clearInterval(countdownInterval);
+        isScanning = false;
+        scanButton.innerHTML = '<i class="fas fa-play mr-2"></i>Start Auto-Scan';
+        scanButton.className = 'px-6 py-2.5 rounded-lg font-semibold text-white bg-green-600 hover:bg-green-700 transition-all';
+        document.getElementById('scanStatus').textContent = 'Stopped';
+        document.getElementById('scanTimer').classList.add('hidden');
+        document.getElementById('scanIndicator').className = 'w-3 h-3 rounded-full bg-gray-500';
+        setStatus('Auto-scan stopped', 'yellow');
+      } else {
+        // Start scanning
+        isScanning = true;
+        scanButton.innerHTML = '<i class="fas fa-stop mr-2"></i>Stop Auto-Scan';
+        scanButton.className = 'px-6 py-2.5 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700 transition-all';
+        document.getElementById('scanIndicator').className = 'w-3 h-3 rounded-full bg-green-500 pulse';
+        document.getElementById('scanStatus').textContent = 'Auto-scanning...';
+        
+        // Perform first scan immediately
+        performSingleScan();
+        
+        // Set up interval for subsequent scans (every 60 seconds)
+        scanInterval = setInterval(performSingleScan, 60000);
+        
+        // Start countdown timer
+        startCountdown(60);
+        
+        setStatus('Auto-scan started (every 60 seconds)', 'green');
+      }
+    }
+
+    // Start countdown timer
+    function startCountdown(seconds) {
+      const timerEl = document.getElementById('scanTimer');
+      const countdownEl = document.getElementById('countdown');
+      
+      timerEl.classList.remove('hidden');
+      countdownEl.textContent = seconds;
+      
+      clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        seconds--;
+        countdownEl.textContent = seconds;
+        
+        if (seconds <= 0) {
+          seconds = 60;
+          countdownEl.textContent = seconds;
+        }
+      }, 1000);
+    }
+
+    // Update statistics display
+    function updateStats() {
+      document.getElementById('totalOpps').textContent = stats.total;
+      document.getElementById('avgProfit').textContent = `$${stats.avgProfit}`;
+      document.getElementById('scansCount').textContent = stats.scans;
+    }
+
+    // Set status message
+    function setStatus(text, color = 'blue') {
+      const statusMap = {
+        'blue': { bg: 'bg-blue-900/30', border: 'border-blue-700', icon: 'fa-info-circle' },
+        'green': { bg: 'bg-green-900/30', border: 'border-green-700', icon: 'fa-check-circle' },
+        'red': { bg: 'bg-red-900/30', border: 'border-red-700', icon: 'fa-exclamation-circle' },
+        'yellow': { bg: 'bg-yellow-900/30', border: 'border-yellow-700', icon: 'fa-exclamation-triangle' }
+      };
+      
+      const config = statusMap[color] || statusMap.blue;
+      const messageEl = document.getElementById('statusMessage');
+      const iconEl = document.getElementById('statusIcon');
+      const textEl = document.getElementById('statusText');
+      
+      messageEl.className = `mb-6 rounded-xl p-4 border ${config.bg} ${config.border}`;
+      iconEl.className = `fas ${config.icon} mr-3 text-lg`;
+      iconEl.classList.add(color === 'blue' ? 'text-blue-400' : 
+                          color === 'green' ? 'text-green-400' : 
+                          color === 'red' ? 'text-red-400' : 'text-yellow-400');
+      textEl.textContent = text;
+      messageEl.classList.remove('hidden');
+      
+      // Auto-hide after 5 seconds (except for errors)
+      if (color !== 'red') {
+        setTimeout(() => {
+          messageEl.classList.add('hidden');
+        }, 5000);
+      }
+    }
+
+    // Render opportunities table
+    function renderOpportunities() {
+      const container = document.getElementById('opportunitiesList');
+      
+      if (!opportunities || opportunities.length === 0) {
+        container.innerHTML = `
+          <tr>
+            <td colspan="5" class="px-4 py-12 text-center text-gray-400">
+              <i class="fas fa-search fa-2x mb-3"></i>
+              <p>No opportunities found yet. Start scanning to find arbitrage opportunities.</p>
+            </td>
+          </tr>`;
+        return;
+      }
+      
+      container.innerHTML = opportunities.map(opp => `
+        <tr class="hover:bg-slate-700/50 transition-colors">
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+              <div class="flex -space-x-2">
+                <img src="${getTokenIcon(opp.tokenIn?.symbol || opp.pair?.split('/')[0])}" 
+                     class="token-icon" 
+                     alt="${opp.tokenIn?.symbol || 'Token'}"
+                     onerror="this.src='https://cryptoicons.org/api/icon/eth/200'">
+                <img src="${getTokenIcon(opp.tokenOut?.symbol || opp.pair?.split('/')[1])}" 
+                     class="token-icon" 
+                     alt="${opp.tokenOut?.symbol || 'Token'}"
+                     onerror="this.src='https://cryptoicons.org/api/icon/usdc/200'">
+              </div>
+              <div>
+                <div class="font-medium text-white">${opp.pair || `${opp.tokenIn?.symbol}/${opp.tokenOut?.symbol}`}</div>
+                <div class="text-xs text-gray-400">${NETWORKS[selectedNetwork].name}</div>
+              </div>
+            </div>
+          </td>
+          <td class="px-4 py-3">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-1 rounded text-xs font-medium ${opp.direction?.includes('Paraswap') ? 'bg-purple-900 text-purple-200' : 'bg-cyan-900 text-cyan-200'}">
+                ${opp.direction || `${opp.dexBuy} → ${opp.dexSell}`}
+              </span>
+            </div>
+          </td>
+          <td class="px-4 py-3">
+            <div class="text-white font-medium">$${opp.tradeSizeUSD?.toLocaleString() || '1,000'}</div>
+            <div class="text-xs text-gray-400">Size</div>
+          </td>
+          <td class="px-4 py-3">
+            <div class="text-green-400 font-bold">+$${opp.profitUSD || opp.netProfitUSD || '0.00'}</div>
+            <div class="text-xs text-gray-400">Net profit</div>
+          </td>
+          <td class="px-4 py-3">
+            <button class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
+              <i class="fas fa-exchange-alt mr-1"></i>Execute
+            </button>
+          </td>
+        </tr>
+      `).join('');
+    }
+
+    // Helper function to get token icon
+    function getTokenIcon(symbol) {
+      if (!symbol) return 'https://cryptoicons.org/api/icon/eth/200';
+      const cleanSymbol = symbol.replace('W', '').toLowerCase();
+      return `https://cryptoicons.org/api/icon/${cleanSymbol}/200`;
+    }
+
+    // Helper function to format time
+    function formatTime(date) {
+      if (!date) return 'Never';
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+  </script>
+</body>
+</html>
