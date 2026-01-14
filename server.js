@@ -3,14 +3,16 @@ const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
 const axios = require('axios');
-const NodeCache = require('node-cache');
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
-const cache = new NodeCache({ stdTTL: 10, checkperiod: 2 });
+
+// Simple in-memory cache
+const cache = new Map();
+const CACHE_TTL = 10000; // 10 seconds
 
 /* ============================================================
    NETWORK CONFIG
@@ -22,8 +24,7 @@ const NETWORKS = {
     rpc: process.env.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc',
     paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapQuoterV2: '0x61fE014bA17989E743c5F6cB21bF9697530B21eE',
-    gasUSD: 1.5,
-    multicall: '0x842eC2c7D803033Edf55E478F461FC547Bc54EB2'
+    gasUSD: 1.5
   },
   polygon: {
     name: 'Polygon',
@@ -31,8 +32,7 @@ const NETWORKS = {
     rpc: process.env.POLYGON_RPC || 'https://polygon-rpc.com',
     paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapQuoterV2: '0x61fE014bA17989E743c5F6cB21bF9697530B21eE',
-    gasUSD: 0.4,
-    multicall: '0x275617327c958bD06b5D6b871E7f491D76113dd8'
+    gasUSD: 0.4
   },
   optimism: {
     name: 'Optimism',
@@ -40,13 +40,12 @@ const NETWORKS = {
     rpc: process.env.OPTIMISM_RPC || 'https://mainnet.optimism.io',
     paraswapAPI: 'https://apiv5.paraswap.io',
     uniswapQuoterV2: '0x61fE014bA17989E743c5F6cB21bF9697530B21eE',
-    gasUSD: 0.8,
-    multicall: '0x2DC0E2aa608532Da689e89e237dF582B783E552C'
+    gasUSD: 0.8
   }
 };
 
 /* ============================================================
-   TOKEN LISTS (FULL LISTS RESTORED)
+   TOKEN LISTS (FULL LISTS)
 ============================================================ */
 const TOKEN_LISTS = {
   arbitrum: [
@@ -79,111 +78,150 @@ const TOKEN_LISTS = {
 };
 
 /* ============================================================
-   TOKEN RESOLVER - Dynamically fetch token addresses
+   TOKEN ADDRESS RESOLVER
 ============================================================ */
 class TokenResolver {
   constructor() {
-    // Base tokens with known addresses
     this.baseTokens = {
       'WETH': {
-        arbitrum: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1',
-        polygon: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619',
-        optimism: '0x4200000000000000000000000000000000000006',
-        decimals: 18
+        arbitrum: { address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', decimals: 18 },
+        polygon: { address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', decimals: 18 },
+        optimism: { address: '0x4200000000000000000000000000000000000006', decimals: 18 }
       },
       'USDC': {
-        arbitrum: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8',
-        polygon: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174',
-        optimism: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607',
-        decimals: 6
+        arbitrum: { address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', decimals: 6 },
+        polygon: { address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', decimals: 6 },
+        optimism: { address: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607', decimals: 6 }
       },
       'USDT': {
-        arbitrum: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9',
-        polygon: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F',
-        optimism: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58',
-        decimals: 6
+        arbitrum: { address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals: 6 },
+        polygon: { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6 },
+        optimism: { address: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58', decimals: 6 }
       },
       'DAI': {
-        arbitrum: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
-        polygon: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063',
-        optimism: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1',
-        decimals: 18
+        arbitrum: { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', decimals: 18 },
+        polygon: { address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', decimals: 18 },
+        optimism: { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', decimals: 18 }
       },
       'WBTC': {
-        arbitrum: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f',
-        polygon: '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6',
-        optimism: '0x68f180fcCe6836688e9084f035309E29Bf0A2095',
-        decimals: 8
+        arbitrum: { address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f', decimals: 8 },
+        polygon: { address: '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6', decimals: 8 },
+        optimism: { address: '0x68f180fcCe6836688e9084f035309E29Bf0A2095', decimals: 8 }
       }
     };
     
-    // Cache for resolved tokens
-    this.tokenCache = new Map();
+    // Common token addresses for each network
+    this.commonTokens = {
+      arbitrum: {
+        'ARB': { address: '0x912CE59144191C1204E64559FE8253a0e49E6548', decimals: 18 },
+        'LINK': { address: '0xf97f4df75117a78c1A5a0DBb814Af92458539FB4', decimals: 18 },
+        'UNI': { address: '0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0', decimals: 18 },
+        'MATIC': { address: '0x561877b6b3DD7651313794e5F2894B2F18bE0766', decimals: 18 },
+        'AAVE': { address: '0xba5DdD1f9d7F570dc94a51479a000E3BCE967196', decimals: 18 },
+        'CRV': { address: '0x11cDb42B0EB46D95f990BeDD4695A6e3fA034978', decimals: 18 },
+        'SNX': { address: '0xcBA56Cd8216FCBBF3f6bd1b0CacBc1cB9e5dFEc1', decimals: 18 },
+        'COMP': { address: '0x354A6dA3fcde098F8389cad84b0182725c6C91dE', decimals: 18 },
+        'MKR': { address: '0x2e9a6Df78E42a30712c10a9Dc4b1C8656f8F2879', decimals: 18 },
+        'SUSHI': { address: '0xd4d42F0b6DEF4CE0383636770eF773390d85c61A', decimals: 18 }
+      },
+      polygon: {
+        'MATIC': { address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', decimals: 18 },
+        'LINK': { address: '0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39', decimals: 18 },
+        'AAVE': { address: '0xD6DF932A45C0f255f85145f286eA0b292B21C90B', decimals: 18 },
+        'CRV': { address: '0x172370d5Cd63279eFa6d502DAB29171933a610AF', decimals: 18 },
+        'SUSHI': { address: '0x0b3F868E0BE5597D5DB7fEB59E1CADBb0fdDa50a', decimals: 18 },
+        'QUICK': { address: '0x831753DD7087CaC61aB5644b308642cc1c33Dc13', decimals: 18 }
+      },
+      optimism: {
+        'OP': { address: '0x4200000000000000000000000000000000000042', decimals: 18 },
+        'LINK': { address: '0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6', decimals: 18 },
+        'AAVE': { address: '0x76FB31fb4af56892A25e32cFC43De717950c9278', decimals: 18 },
+        'SNX': { address: '0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4', decimals: 18 },
+        'PERP': { address: '0x9e1028F5F1D5eDE59748FFceE5532509976840E0', decimals: 18 }
+      }
+    };
   }
 
   async resolveToken(networkKey, symbol) {
     const cacheKey = `${networkKey}:${symbol}`;
     
-    // Return from cache if available
-    if (this.tokenCache.has(cacheKey)) {
-      return this.tokenCache.get(cacheKey);
+    // Check cache first
+    const cached = cache.get(cacheKey);
+    if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+      return cached.data;
     }
     
     // Check if it's a base token
     if (this.baseTokens[symbol] && this.baseTokens[symbol][networkKey]) {
       const tokenInfo = {
-        address: this.baseTokens[symbol][networkKey],
-        decimals: this.baseTokens[symbol].decimals
+        address: this.baseTokens[symbol][networkKey].address,
+        decimals: this.baseTokens[symbol][networkKey].decimals,
+        symbol: symbol
       };
-      this.tokenCache.set(cacheKey, tokenInfo);
+      cache.set(cacheKey, { data: tokenInfo, timestamp: Date.now() });
       return tokenInfo;
     }
     
-    // For other tokens, we'll use a simplified approach
-    // In production, you would use a token list API or on-chain registry
-    const tokenInfo = await this.fetchTokenFromDexScreener(networkKey, symbol);
-    if (tokenInfo) {
-      this.tokenCache.set(cacheKey, tokenInfo);
+    // Check common tokens
+    if (this.commonTokens[networkKey] && this.commonTokens[networkKey][symbol]) {
+      const tokenInfo = {
+        ...this.commonTokens[networkKey][symbol],
+        symbol: symbol
+      };
+      cache.set(cacheKey, { data: tokenInfo, timestamp: Date.now() });
       return tokenInfo;
     }
     
+    // Try to fetch from DexScreener
+    try {
+      const tokenInfo = await this.fetchTokenFromDexScreener(networkKey, symbol);
+      if (tokenInfo) {
+        cache.set(cacheKey, { data: tokenInfo, timestamp: Date.now() });
+        return tokenInfo;
+      }
+    } catch (error) {
+      console.log(`Failed to fetch ${symbol} from DexScreener:`, error.message);
+    }
+    
+    // Return null if token not found
     return null;
   }
 
   async fetchTokenFromDexScreener(networkKey, symbol) {
+    const chainMap = {
+      arbitrum: 'arbitrum',
+      polygon: 'polygon',
+      optimism: 'optimism'
+    };
+    
+    const chain = chainMap[networkKey];
+    if (!chain) return null;
+    
     try {
-      const chainIdMap = {
-        arbitrum: 'arbitrum',
-        polygon: 'polygon',
-        optimism: 'optimism'
-      };
-      
-      const chain = chainIdMap[networkKey];
-      if (!chain) return null;
-      
       const response = await axios.get(
-        `https://api.dexscreener.com/latest/dex/tokens/${symbol}`,
+        `https://api.dexscreener.com/latest/dex/search?q=${symbol}`,
         { timeout: 5000 }
       );
       
       const pairs = response.data.pairs || [];
       for (const pair of pairs) {
-        if (pair.chainId === chain) {
-          // Find which token in the pair matches our symbol
-          const token = [pair.baseToken, pair.quoteToken].find(t => 
-            t.symbol.toUpperCase() === symbol.toUpperCase()
-          );
+        if (pair.chainId === chain && 
+            (pair.baseToken.symbol.toUpperCase() === symbol.toUpperCase() || 
+             pair.quoteToken.symbol.toUpperCase() === symbol.toUpperCase())) {
           
-          if (token) {
-            return {
-              address: token.address,
-              decimals: token.decimals || 18
-            };
-          }
+          const token = pair.baseToken.symbol.toUpperCase() === symbol.toUpperCase() 
+            ? pair.baseToken 
+            : pair.quoteToken;
+          
+          return {
+            address: token.address,
+            decimals: token.decimals || 18,
+            symbol: symbol.toUpperCase()
+          };
         }
       }
     } catch (error) {
-      console.error(`Error fetching token ${symbol} on ${networkKey}:`, error.message);
+      console.error(`Error fetching token ${symbol}:`, error.message);
     }
     
     return null;
@@ -196,23 +234,18 @@ const tokenResolver = new TokenResolver();
    CONSTANTS
 ============================================================ */
 const BASE_TOKENS = ['WETH', 'USDC', 'USDT', 'DAI', 'WBTC'];
-const TRADE_SIZES_USD = [1000, 5000, 10000];
+const TRADE_SIZES_USD = [1000, 5000];
 const SLIPPAGE_BPS = 30;
 const MIN_PROFIT_USD = 5;
-const MAX_PAIRS_PER_SCAN = 50; // Limit to avoid timeout
+const MAX_PAIRS_PER_SCAN = 20; // Reduced for faster scanning
 
 const QUOTER_ABI = [
   'function quoteExactInputSingle((address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitX96)) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'
 ];
 
 /* ============================================================
-   HELPERS
+   HELPER FUNCTIONS
 ============================================================ */
-function tokenIcon(symbol) {
-  // Use a generic icon service that doesn't require addresses
-  return `https://cryptoicons.org/api/icon/${symbol.toLowerCase()}/200`;
-}
-
 function generatePairs(tokens) {
   const pairs = [];
   for (const base of BASE_TOKENS) {
@@ -230,21 +263,25 @@ function generatePairs(tokens) {
   return pairs;
 }
 
+function getTokenIconUrl(symbol) {
+  const cleanSymbol = symbol.replace('W', '').toLowerCase();
+  return `https://cryptocurrencyliveprices.com/img/${cleanSymbol}-${cleanSymbol}.png`;
+}
+
 /* ============================================================
-   PRICE FETCHERS - REAL QUOTES
+   PRICE FETCHERS
 ============================================================ */
 async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
   try {
     const provider = new ethers.JsonRpcProvider(network.rpc);
     const quoter = new ethers.Contract(network.uniswapQuoterV2, QUOTER_ABI, provider);
     
-    // Try different fee tiers
-    const fees = [500, 3000, 10000]; // 0.05%, 0.3%, 1%
-    let bestQuote = ethers.ZeroAddress;
+    const fees = [500, 3000, 10000];
+    let bestQuote = 0n;
     
     for (const fee of fees) {
       try {
-        const quote = await quoter.quoteExactInputSingle.staticCall([
+        const [amountOut] = await quoter.quoteExactInputSingle.staticCall([
           tokenIn.address,
           tokenOut.address,
           amountInWei,
@@ -252,18 +289,17 @@ async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
           0
         ]);
         
-        if (quote && quote[0] > bestQuote) {
-          bestQuote = quote[0];
+        if (amountOut > bestQuote) {
+          bestQuote = amountOut;
         }
       } catch (_) {
-        // Fee tier not available for this pair
         continue;
       }
     }
     
     return bestQuote;
   } catch (error) {
-    console.error(`Uniswap quote error for ${tokenIn.address}->${tokenOut.address}:`, error.message);
+    console.error(`Uniswap quote error:`, error.message);
     return null;
   }
 }
@@ -279,7 +315,7 @@ async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
       destDecimals: tokenOut.decimals,
       network: network.chainId,
       side: 'SELL',
-      excludeDEXS: 'Uniswap' // Don't include Uniswap in Paraswap route
+      excludeDEXS: 'Uniswap'
     };
 
     const response = await axios.get(url, { params, timeout: 10000 });
@@ -295,16 +331,19 @@ async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
 }
 
 /* ============================================================
-   PRICE ORACLE FOR USD VALUES
+   PRICE ORACLE
 ============================================================ */
-async function getTokenPriceInUSD(networkKey, symbol) {
-  const cacheKey = `price:${networkKey}:${symbol}`;
+async function getTokenPriceInUSD(symbol) {
+  const cacheKey = `price:${symbol}`;
   const cached = cache.get(cacheKey);
-  if (cached) return cached;
+  
+  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+    return cached.data;
+  }
   
   try {
-    // Use CoinGecko or similar API
-    const coinId = symbol.toLowerCase();
+    // Use CoinGecko API
+    const coinId = symbol.toLowerCase().replace('w', '');
     const response = await axios.get(
       `https://api.coingecko.com/api/v3/simple/price?ids=${coinId}&vs_currencies=usd`,
       { timeout: 5000 }
@@ -312,32 +351,41 @@ async function getTokenPriceInUSD(networkKey, symbol) {
     
     if (response.data[coinId]?.usd) {
       const price = response.data[coinId].usd;
-      cache.set(cacheKey, price);
+      cache.set(cacheKey, { data: price, timestamp: Date.now() });
       return price;
     }
-  } catch (error) {
-    console.error(`Price fetch error for ${symbol}:`, error.message);
+  } catch (_) {
+    // Fallback to DexScreener
+    try {
+      const response = await axios.get(
+        `https://api.dexscreener.com/latest/dex/search?q=${symbol}`,
+        { timeout: 5000 }
+      );
+      
+      if (response.data.pairs?.[0]?.priceUsd) {
+        const price = parseFloat(response.data.pairs[0].priceUsd);
+        cache.set(cacheKey, { data: price, timestamp: Date.now() });
+        return price;
+      }
+    } catch (_) {}
   }
   
-  // Fallback to DexScreener
-  try {
-    const response = await axios.get(
-      `https://api.dexscreener.com/latest/dex/tokens/${symbol}`,
-      { timeout: 5000 }
-    );
-    
-    if (response.data.pairs?.[0]?.priceUsd) {
-      const price = parseFloat(response.data.pairs[0].priceUsd);
-      cache.set(cacheKey, price);
-      return price;
-    }
-  } catch (_) {}
+  // Default prices for common tokens
+  const defaultPrices = {
+    'WETH': 3000, 'ETH': 3000,
+    'USDC': 1, 'USDT': 1, 'DAI': 1,
+    'WBTC': 60000, 'BTC': 60000,
+    'ARB': 1.2, 'LINK': 15, 'UNI': 7,
+    'MATIC': 0.8, 'AAVE': 100, 'OP': 2.5
+  };
   
-  return null;
+  const price = defaultPrices[symbol] || 1;
+  cache.set(cacheKey, { data: price, timestamp: Date.now() });
+  return price;
 }
 
 /* ============================================================
-   CORE ARBITRAGE SCANNER - REAL LOGIC
+   CORE ARBITRAGE SCANNER
 ============================================================ */
 async function scanArbitrage(networkKey) {
   const network = NETWORKS[networkKey];
@@ -346,11 +394,10 @@ async function scanArbitrage(networkKey) {
   
   // Generate trading pairs
   const allPairs = generatePairs(tokens);
-  const pairs = allPairs.slice(0, MAX_PAIRS_PER_SCAN); // Limit for performance
+  const pairs = allPairs.slice(0, MAX_PAIRS_PER_SCAN);
   
   console.log(`Scanning ${pairs.length} pairs on ${network.name}...`);
   
-  // Process pairs in batches
   for (let i = 0; i < pairs.length; i++) {
     const pair = pairs[i];
     
@@ -364,7 +411,7 @@ async function scanArbitrage(networkKey) {
       }
       
       // Get USD price for sizing
-      const basePrice = await getTokenPriceInUSD(networkKey, pair.base);
+      const basePrice = await getTokenPriceInUSD(pair.base);
       if (!basePrice) continue;
       
       for (const sizeUSD of TRADE_SIZES_USD) {
@@ -386,7 +433,6 @@ async function scanArbitrage(networkKey) {
             continue;
           }
           
-          // Calculate profit opportunities
           // Strategy 1: Buy on Paraswap, sell on Uniswap
           const paraswapToUniswapProfit = await calculateProfit(
             network,
@@ -403,50 +449,24 @@ async function scanArbitrage(networkKey) {
               network: networkKey,
               pair: `${pair.base}/${pair.target}`,
               direction: 'Paraswap → Uniswap',
-              tokenIn: { symbol: pair.base, address: baseToken.address },
-              tokenOut: { symbol: pair.target, address: targetToken.address },
+              tokenIn: { 
+                symbol: pair.base, 
+                address: baseToken.address,
+                icon: getTokenIconUrl(pair.base)
+              },
+              tokenOut: { 
+                symbol: pair.target, 
+                address: targetToken.address,
+                icon: getTokenIconUrl(pair.target)
+              },
               tradeSizeUSD: sizeUSD,
               profitUSD: paraswapToUniswapProfit.toFixed(2),
+              netProfitUSD: (paraswapToUniswapProfit - network.gasUSD).toFixed(2),
               gasCostUSD: network.gasUSD,
               dexBuy: 'Paraswap V5',
               dexSell: 'Uniswap V3',
               timestamp: new Date().toISOString()
             });
-          }
-          
-          // Strategy 2: Buy on Uniswap, sell on Paraswap (reverse direction)
-          // Need quotes for opposite direction
-          const [uniswapReverseOut, paraswapReverseOut] = await Promise.all([
-            getUniswapV3Quote(network, targetToken, baseToken, paraswapAmountOut),
-            getParaswapQuote(network, targetToken, baseToken, uniswapAmountOut)
-          ]);
-          
-          if (uniswapReverseOut && paraswapReverseOut) {
-            const uniswapToParaswapProfit = await calculateProfit(
-              network,
-              targetToken,
-              baseToken,
-              uniswapAmountOut, // Start with Uniswap output
-              paraswapReverseOut,
-              uniswapReverseOut,
-              sizeUSD
-            );
-            
-            if (uniswapToParaswapProfit > MIN_PROFIT_USD) {
-              opportunities.push({
-                network: networkKey,
-                pair: `${pair.target}/${pair.base}`,
-                direction: 'Uniswap → Paraswap',
-                tokenIn: { symbol: pair.target, address: targetToken.address },
-                tokenOut: { symbol: pair.base, address: baseToken.address },
-                tradeSizeUSD: sizeUSD,
-                profitUSD: uniswapToParaswapProfit.toFixed(2),
-                gasCostUSD: network.gasUSD,
-                dexBuy: 'Uniswap V3',
-                dexSell: 'Paraswap V5',
-                timestamp: new Date().toISOString()
-              });
-            }
           }
           
         } catch (error) {
@@ -461,8 +481,8 @@ async function scanArbitrage(networkKey) {
     }
     
     // Add small delay to avoid rate limiting
-    if (i % 10 === 0) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+    if (i % 5 === 0) {
+      await new Promise(resolve => setTimeout(resolve, 200));
     }
   }
   
@@ -474,26 +494,25 @@ async function calculateProfit(network, tokenIn, tokenOut, amountInWei, buyAmoun
   if (!buyAmountOut || !sellAmountOut) return 0;
   
   try {
-    // Calculate price impact and slippage
-    const buyPricePerToken = Number(amountInWei) / Number(buyAmountOut);
-    const sellPricePerToken = Number(sellAmountOut) / Number(amountInWei);
+    // Calculate profit in token units
+    const buyAmount = Number(buyAmountOut) / Math.pow(10, tokenOut.decimals);
+    const sellAmount = Number(sellAmountOut) / Math.pow(10, tokenOut.decimals);
     
     // Apply slippage
-    const sellAmountWithSlippage = Number(sellAmountOut) * (1 - SLIPPAGE_BPS / 10000);
+    const sellAmountWithSlippage = sellAmount * (1 - SLIPPAGE_BPS / 10000);
     
-    // Calculate profit in token units
-    const profitTokens = sellAmountWithSlippage - Number(buyAmountOut);
+    // Calculate profit
+    const profitTokens = sellAmountWithSlippage - buyAmount;
     
     if (profitTokens <= 0) return 0;
     
     // Convert to USD
-    const tokenOutPrice = await getTokenPriceInUSD(network.name.toLowerCase(), tokenOut.symbol);
+    const tokenOutPrice = await getTokenPriceInUSD(tokenOut.symbol);
     if (!tokenOutPrice) return 0;
     
     const grossProfitUSD = profitTokens * tokenOutPrice;
-    const netProfitUSD = grossProfitUSD - network.gasUSD;
     
-    return netProfitUSD;
+    return grossProfitUSD;
   } catch (error) {
     console.error('Profit calculation error:', error.message);
     return 0;
@@ -547,7 +566,8 @@ app.get('/health', (_, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
-    networks: Object.keys(NETWORKS)
+    networks: Object.keys(NETWORKS),
+    uptime: process.uptime()
   });
 });
 
@@ -557,10 +577,6 @@ app.get('/health', (_, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Arbitrage Scanner running on port ${PORT}`);
   console.log(`📊 Supported networks: ${Object.keys(NETWORKS).join(', ')}`);
-  console.log(`🔍 Total tokens per network:`);
-  Object.entries(TOKEN_LISTS).forEach(([network, tokens]) => {
-    console.log(`   ${network}: ${tokens.length} tokens`);
-  });
 });
 
 module.exports = app;
