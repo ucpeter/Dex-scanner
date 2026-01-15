@@ -1,4 +1,4 @@
-// server.js – FIXED Uniswap V3 Quotes
+// server.js – FIXED Uniswap V3 Quotes with correct addresses
 const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
@@ -17,7 +17,7 @@ const cache = new Map();
 const CACHE_TTL = 10000; // 10 seconds
 
 /* ============================================================
-   NETWORK CONFIG WITH CORRECT QUOTER ADDRESSES
+   NETWORK CONFIG WITH CORRECT UNISWAP QUOTER ADDRESSES
 ============================================================ */
 const NETWORKS = {
   arbitrum: {
@@ -25,7 +25,8 @@ const NETWORKS = {
     chainId: 42161,
     rpc: process.env.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc',
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapQuoterV2: '0x61fE014bA17989E743c5F6cB21bF9697530B21eE', // CORRECT for Arbitrum
+    // CORRECT Uniswap V3 Quoter addresses for each network
+    uniswapQuoterV2: '0x61ffe014ba17989e743c5f6cb21bf9697530b21e', // Lowercase to avoid checksum issues
     gasUSD: 1.5
   },
   polygon: {
@@ -33,7 +34,7 @@ const NETWORKS = {
     chainId: 137,
     rpc: process.env.POLYGON_RPC || 'https://polygon-rpc.com',
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapQuoterV2: '0x61fE014bA17989E743c5F6cB21bF9697530B21eE', // Same on Polygon
+    uniswapQuoterV2: '0x61ffe014ba17989e743c5f6cb21bf9697530b21e', // Lowercase
     gasUSD: 0.4
   },
   optimism: {
@@ -41,73 +42,73 @@ const NETWORKS = {
     chainId: 10,
     rpc: process.env.OPTIMISM_RPC || 'https://mainnet.optimism.io',
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapQuoterV2: '0x61fE014bA17989E743c5F6cB21bF9697530B21eE', // Same on Optimism
+    uniswapQuoterV2: '0x61ffe014ba17989e743c5f6cb21bf9697530b21e', // Lowercase
     gasUSD: 0.8
   }
 };
 
 /* ============================================================
-   TOKEN LISTS WITH VERIFIED ADDRESSES
+   TOKEN LISTS - SIMPLIFIED FOR BETTER RESULTS
 ============================================================ */
 const TOKEN_LISTS = {
   arbitrum: [
     'WETH', 'USDC', 'USDT', 'DAI', 'WBTC', 'ARB', 'LINK', 'UNI', 'AAVE',
-    'CRV', 'COMP', 'SUSHI', 'GMX', 'MAGIC', 'RDNT', 'GNS', 'STG', 'JOE'
+    'CRV', 'COMP', 'SUSHI', 'GMX', 'MAGIC'
   ],
   polygon: [
     'WETH', 'USDC', 'USDT', 'DAI', 'WBTC', 'MATIC', 'LINK', 'AAVE', 'CRV',
-    'SUSHI', 'QUICK', 'BAL', 'SNX', 'COMP', 'MKR', 'YFI', 'UNI'
+    'SUSHI', 'QUICK'
   ],
   optimism: [
     'WETH', 'USDC', 'USDT', 'DAI', 'WBTC', 'OP', 'LINK', 'AAVE', 'SNX',
-    'PERP', 'VELO', 'THALES', 'LYRA', 'FRAX', 'FXS', 'LUSD'
+    'PERP'
   ]
 };
 
 /* ============================================================
-   CORRECT TOKEN ADDRESSES (VERIFIED)
+   TOKEN ADDRESSES - ALL LOWERCASE TO AVOID CHECKSUM ISSUES
 ============================================================ */
 const TOKEN_ADDRESSES = {
   arbitrum: {
-    'WETH': { address: '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1', decimals: 18 },
-    'USDC': { address: '0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8', decimals: 6 },
-    'USDT': { address: '0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9', decimals: 6 },
-    'DAI': { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', decimals: 18 },
-    'WBTC': { address: '0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f', decimals: 8 },
-    'ARB': { address: '0x912CE59144191C1204E64559FE8253a0e49E6548', decimals: 18 },
-    'LINK': { address: '0xf97f4df75117a78c1A5a0DBb814Af92458539FB4', decimals: 18 },
-    'UNI': { address: '0xFa7F8980b0f1E64A2062791cc3b0871572f1F7f0', decimals: 18 },
-    'AAVE': { address: '0xba5DdD1f9d7F570dc94a51479a000E3BCE967196', decimals: 18 },
-    'CRV': { address: '0x11cDb42B0EB46D95f990BeDD4695A6e3fA034978', decimals: 18 },
-    'COMP': { address: '0x354A6dA3fcde098F8389cad84b0182725c6C91dE', decimals: 18 },
-    'SUSHI': { address: '0xd4d42F0b6DEF4CE0383636770eF773390d85c61A', decimals: 18 },
-    'GMX': { address: '0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a', decimals: 18 },
-    'MAGIC': { address: '0x539bdE0d7Dbd336b79148AA742883198BBF60342', decimals: 18 }
+    'WETH': { address: '0x82af49447d8a07e3bd95bd0d56f35241523fbab1', decimals: 18 },
+    'USDC': { address: '0xff970a61a04b1ca14834a43f5de4533ebddb5cc8', decimals: 6 },
+    'USDT': { address: '0xfd086bc7cd5c481dcc9c85ebe478a1c0b69fcbb9', decimals: 6 },
+    'DAI': { address: '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1', decimals: 18 },
+    'WBTC': { address: '0x2f2a2543b76a4166549f7aab2e75bef0aefc5b0f', decimals: 8 },
+    'ARB': { address: '0x912ce59144191c1204e64559fe8253a0e49e6548', decimals: 18 },
+    'LINK': { address: '0xf97f4df75117a78c1a5a0dbb814af92458539fb4', decimals: 18 },
+    'UNI': { address: '0xfa7f8980b0f1e64a2062791cc3b0871572f1f7f0', decimals: 18 },
+    'AAVE': { address: '0xba5ddd1f9d7f570dc94a51479a000e3bce967196', decimals: 18 },
+    'CRV': { address: '0x11cdb42b0eb46d95f990bedd4695a6e3fa034978', decimals: 18 },
+    'COMP': { address: '0x354a6da3fcde098f8389cad84b0182725c6c91de', decimals: 18 },
+    'SUSHI': { address: '0xd4d42f0b6def4ce0383636770ef773390d85c61a', decimals: 18 },
+    'GMX': { address: '0xfc5a1a6eb076a2c7ad06ed22c90d7e710e35ad0a', decimals: 18 },
+    'MAGIC': { address: '0x539bde0d7dbd336b79148aa742883198bbf60342', decimals: 18 }
   },
   polygon: {
-    'WETH': { address: '0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619', decimals: 18 },
-    'USDC': { address: '0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174', decimals: 6 },
-    'USDT': { address: '0xc2132D05D31c914a87C6611C10748AEb04B58e8F', decimals: 6 },
-    'DAI': { address: '0x8f3Cf7ad23Cd3CaDbD9735AFf958023239c6A063', decimals: 18 },
-    'WBTC': { address: '0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6', decimals: 8 },
-    'MATIC': { address: '0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270', decimals: 18 },
-    'LINK': { address: '0x53E0bca35eC356BD5ddDFebbD1Fc0fD03FaBad39', decimals: 18 },
-    'AAVE': { address: '0xD6DF932A45C0f255f85145f286eA0b292B21C90B', decimals: 18 },
-    'CRV': { address: '0x172370d5Cd63279eFa6d502DAB29171933a610AF', decimals: 18 },
-    'SUSHI': { address: '0x0b3F868E0BE5597D5DB7fEB59E1CADBb0fdDa50a', decimals: 18 },
-    'QUICK': { address: '0x831753DD7087CaC61aB5644b308642cc1c33Dc13', decimals: 18 }
+    'WETH': { address: '0x7ceb23fd6bc0add59e62ac25578270cff1b9f619', decimals: 18 },
+    'USDC': { address: '0x2791bca1f2de4661ed88a30c99a7a9449aa84174', decimals: 6 },
+    'USDT': { address: '0xc2132d05d31c914a87c6611c10748aeb04b58e8f', decimals: 6 },
+    'DAI': { address: '0x8f3cf7ad23cd3cadbd9735aff958023239c6a063', decimals: 18 },
+    'WBTC': { address: '0x1bfd67037b42cf73acf2047067bd4f2c47d9bfd6', decimals: 8 },
+    'MATIC': { address: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270', decimals: 18 },
+    'LINK': { address: '0x53e0bca35ec356bd5dddfebbd1fc0fd03fabad39', decimals: 18 },
+    'AAVE': { address: '0xd6df932a45c0f255f85145f286ea0b292b21c90b', decimals: 18 },
+    'CRV': { address: '0x172370d5cd63279efa6d502dab29171933a610af', decimals: 18 },
+    'SUSHI': { address: '0x0b3f868e0be5597d5db7feb59e1cadbb0fdda50a', decimals: 18 },
+    'QUICK': { address: '0x831753dd7087cac61ab5644b308642cc1c33dc13', decimals: 18 }
   },
   optimism: {
     'WETH': { address: '0x4200000000000000000000000000000000000006', decimals: 18 },
-    'USDC': { address: '0x7F5c764cBc14f9669B88837ca1490cCa17c31607', decimals: 6 },
-    'USDT': { address: '0x94b008aA00579c1307B0EF2c499aD98a8ce58e58', decimals: 6 },
-    'DAI': { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', decimals: 18 },
-    'WBTC': { address: '0x68f180fcCe6836688e9084f035309E29Bf0A2095', decimals: 8 },
+    'USDC': { address: '0x7f5c764cbc14f9669b88837ca1490cca17c31607', decimals: 6 },
+    'USDT': { address: '0x94b008aa00579c1307b0ef2c499ad98a8ce58e58', decimals: 6 },
+    'DAI': { address: '0xda10009cbd5d07dd0cecc66161fc93d7c9000da1', decimals: 18 },
+    'WBTC': { address: '0x68f180fcce6836688e9084f035309e29bf0a2095', decimals: 8 },
     'OP': { address: '0x4200000000000000000000000000000000000042', decimals: 18 },
-    'LINK': { address: '0x350a791Bfc2C21F9Ed5d10980Dad2e2638ffa7f6', decimals: 18 },
-    'AAVE': { address: '0x76FB31fb4af56892A25e32cFC43De717950c9278', decimals: 18 },
-    'SNX': { address: '0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4', decimals: 18 },
-    'PERP': { address: '0x9e1028F5F1D5eDE59748FFceE5532509976840E0', decimals: 18 }
+    'LINK': { address: '0x350a791bfc2c21f9ed5d10980dad2e2638ffa7f6', decimals: 18 },
+    'AAVE': { address: '0x76fb31fb4af56892a25e32cfc43de717950c9278', decimals: 18 },
+    'SNX': { address: '0x8700daec35af8ff88c16bdf0418774cb3d7599b4', decimals: 18 },
+    'PERP': { address: '0x9e1028f5f1d5ede59748ffcee5532509976840e0', decimals: 18 }
   }
 };
 
@@ -115,12 +116,12 @@ const TOKEN_ADDRESSES = {
    CONSTANTS
 ============================================================ */
 const BASE_TOKENS = ['WETH', 'USDC', 'USDT', 'DAI', 'WBTC'];
-const TRADE_SIZES_USD = [1000, 5000];
+const TRADE_SIZES_USD = [1000];
 const SLIPPAGE_BPS = 30;
 const MIN_PROFIT_USD = 5;
-const MAX_PAIRS_PER_SCAN = 15;
+const MAX_PAIRS_PER_SCAN = 10;
 
-// FIXED Uniswap Quoter ABI
+// CORRECT Uniswap Quoter ABI for V2
 const QUOTER_ABI = [
   'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'
 ];
@@ -150,55 +151,76 @@ function getTokenIconUrl(symbol) {
   return `https://cryptocurrencyliveprices.com/img/${cleanSymbol}-${cleanSymbol}.png`;
 }
 
+// Helper to get checksum address from lowercase
+function getChecksumAddress(address) {
+  try {
+    return ethers.getAddress(address.toLowerCase());
+  } catch {
+    return address.toLowerCase();
+  }
+}
+
 /* ============================================================
-   PRICE FETCHERS - FIXED UNISWAP CALL
+   PRICE FETCHERS - FIXED WITH CORRECT ADDRESS HANDLING
 ============================================================ */
 async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
   try {
+    // Use a provider with longer timeout
     const provider = new ethers.JsonRpcProvider(network.rpc, network.chainId, {
-      staticNetwork: true
+      staticNetwork: true,
+      batchMaxCount: 1
     });
     
-    const quoter = new ethers.Contract(network.uniswapQuoterV2, QUOTER_ABI, provider);
+    // Get checksum addresses
+    const quoterAddress = getChecksumAddress(network.uniswapQuoterV2);
+    const tokenInAddress = getChecksumAddress(tokenIn.address);
+    const tokenOutAddress = getChecksumAddress(tokenOut.address);
+    
+    console.log(`   Uniswap: ${tokenIn.symbol}->${tokenOut.symbol}, Quoter: ${quoterAddress}`);
+    console.log(`   TokenIn: ${tokenInAddress}, TokenOut: ${tokenOutAddress}`);
+    
+    const quoter = new ethers.Contract(quoterAddress, QUOTER_ABI, provider);
     
     const fees = [500, 3000, 10000];
     let bestQuote = 0n;
     
-    console.log(`   Uniswap: Getting quote for ${tokenIn.symbol}->${tokenOut.symbol}, amount: ${amountInWei}`);
-    
     for (const fee of fees) {
       try {
-        // FIXED: Correct parameter order for quoteExactInputSingle
+        console.log(`   Trying fee ${fee}...`);
+        
         const result = await quoter.quoteExactInputSingle.staticCall(
-          tokenIn.address,
-          tokenOut.address,
+          tokenInAddress,
+          tokenOutAddress,
           fee,
           amountInWei,
           0,
-          { timeout: 15000 }
+          { 
+            gasLimit: 1000000,
+            timeout: 30000
+          }
         );
         
-        const amountOut = result[0]; // First return value is amountOut
-        console.log(`   Uniswap fee ${fee}: ${amountOut}`);
+        const amountOut = result[0];
+        console.log(`   Fee ${fee}: ${amountOut.toString()}`);
         
         if (amountOut > bestQuote) {
           bestQuote = amountOut;
         }
       } catch (error) {
-        console.log(`   Uniswap fee ${fee} failed: ${error.message}`);
+        console.log(`   Fee ${fee} failed: ${error.shortMessage || error.message}`);
         continue;
       }
     }
     
     if (bestQuote > 0n) {
-      console.log(`   ✅ Uniswap best quote: ${bestQuote}`);
+      console.log(`   ✅ Uniswap best quote: ${bestQuote.toString()}`);
       return bestQuote;
     } else {
       console.log(`   ❌ No Uniswap quotes available`);
       return null;
     }
   } catch (error) {
-    console.error(`   ❌ Uniswap quote error for ${tokenIn.symbol}->${tokenOut.symbol}:`, error.message);
+    console.error(`   ❌ Uniswap quote error:`, error.shortMessage || error.message);
     return null;
   }
 }
@@ -207,10 +229,9 @@ async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
   try {
     const url = `${network.paraswapAPI}/prices`;
     
-    // Simpler parameters
     const params = {
-      srcToken: tokenIn.address,
-      destToken: tokenOut.address,
+      srcToken: getChecksumAddress(tokenIn.address),
+      destToken: getChecksumAddress(tokenOut.address),
       amount: amountInWei.toString(),
       srcDecimals: tokenIn.decimals,
       destDecimals: tokenOut.decimals,
@@ -218,35 +239,31 @@ async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
       side: 'SELL'
     };
 
-    console.log(`   Paraswap: Request for ${tokenIn.symbol}->${tokenOut.symbol}`);
+    console.log(`   Paraswap: ${tokenIn.symbol}->${tokenOut.symbol}`);
 
     const response = await axios.get(url, { 
       params, 
-      timeout: 15000,
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
+      timeout: 15000
     });
     
     console.log(`   Paraswap response: ${response.status}`);
     
     if (response.data?.priceRoute?.destAmount) {
       const destAmount = BigInt(response.data.priceRoute.destAmount);
-      console.log(`   ✅ Paraswap quote: ${destAmount}`);
+      console.log(`   ✅ Paraswap quote: ${destAmount.toString()}`);
       return destAmount;
     } else {
       console.log(`   ❌ Paraswap no price route`);
       return null;
     }
   } catch (error) {
-    console.error(`   ❌ Paraswap error for ${tokenIn.symbol}->${tokenOut.symbol}:`, error.response?.status || error.message);
+    console.error(`   ❌ Paraswap error:`, error.response?.status || error.message);
     return null;
   }
 }
 
 /* ============================================================
-   PRICE ORACLE - WITH BETTER RATE LIMITING
+   PRICE ORACLE
 ============================================================ */
 async function getTokenPriceInUSD(symbol) {
   const cacheKey = `price:${symbol}`;
@@ -256,7 +273,7 @@ async function getTokenPriceInUSD(symbol) {
     return cached.data;
   }
   
-  // Use reliable price sources with fallbacks
+  // Use reliable default prices
   const defaultPrices = {
     'WETH': 3200, 'ETH': 3200,
     'USDC': 1, 'USDT': 1, 'DAI': 1,
@@ -293,7 +310,7 @@ async function scanArbitrage(networkKey) {
     const pair = pairs[i];
     
     try {
-      // Get token info from our fixed addresses
+      // Get token info
       const baseToken = TOKEN_ADDRESSES[networkKey][pair.base];
       const targetToken = TOKEN_ADDRESSES[networkKey][pair.target];
       
@@ -313,7 +330,6 @@ async function scanArbitrage(networkKey) {
         continue;
       }
       
-      // Only scan $1000 size for speed
       const sizeUSD = 1000;
       
       console.log(`\n🔍 [${i+1}/${pairs.length}] ${pair.base} → ${pair.target} ($${sizeUSD})`);
@@ -328,16 +344,22 @@ async function scanArbitrage(networkKey) {
         
         console.log(`   Amount: ${amountInTokens.toFixed(6)} ${pair.base}`);
         
-        // Get quotes from both DEXs - sequential to avoid rate limiting
+        // Get Uniswap quote
         const uniswapAmountOut = await getUniswapV3Quote(network, baseTokenWithSymbol, targetTokenWithSymbol, amountInWei);
         
-        // Wait between API calls
+        if (!uniswapAmountOut) {
+          console.log(`   ⏭️  Skipping: No Uniswap quote`);
+          continue;
+        }
+        
+        // Wait before Paraswap call
         await new Promise(resolve => setTimeout(resolve, 1000));
         
+        // Get Paraswap quote
         const paraswapAmountOut = await getParaswapQuote(network, baseTokenWithSymbol, targetTokenWithSymbol, amountInWei);
         
-        if (!uniswapAmountOut || !paraswapAmountOut) {
-          console.log(`   ⏭️  Skipping: Missing quotes`);
+        if (!paraswapAmountOut) {
+          console.log(`   ⏭️  Skipping: No Paraswap quote`);
           continue;
         }
         
@@ -349,16 +371,20 @@ async function scanArbitrage(networkKey) {
         console.log(`     Uniswap:  ${uniswapAmount.toFixed(6)} ${pair.target}`);
         console.log(`     Paraswap: ${paraswapAmount.toFixed(6)} ${pair.target}`);
         
-        // Check both directions
-        // Direction 1: Buy on Paraswap, sell on Uniswap
+        // Calculate price difference percentage
+        const priceDiffPercent = Math.abs((uniswapAmount - paraswapAmount) / Math.max(uniswapAmount, paraswapAmount)) * 100;
+        console.log(`   📈 Price difference: ${priceDiffPercent.toFixed(2)}%`);
+        
+        // Check for arbitrage opportunities
         if (paraswapAmountOut < uniswapAmountOut) {
+          // Buy on Paraswap, sell on Uniswap
           const profitTokens = (Number(uniswapAmountOut) - Number(paraswapAmountOut)) / Math.pow(10, targetToken.decimals);
           const tokenOutPrice = await getTokenPriceInUSD(pair.target);
           const grossProfitUSD = profitTokens * tokenOutPrice;
           const netProfitUSD = grossProfitUSD - network.gasUSD;
           
           if (netProfitUSD > MIN_PROFIT_USD) {
-            console.log(`   🎯 FOUND: Buy on Paraswap, sell on Uniswap`);
+            console.log(`   🎯 FOUND ARBITRAGE: Buy on Paraswap, sell on Uniswap`);
             console.log(`      Profit: $${netProfitUSD.toFixed(2)} (after gas)`);
             
             opportunities.push({
@@ -385,21 +411,20 @@ async function scanArbitrage(networkKey) {
               details: {
                 paraswapPrice: paraswapAmount.toFixed(6),
                 uniswapPrice: uniswapAmount.toFixed(6),
-                priceDifference: ((uniswapAmount / paraswapAmount - 1) * 100).toFixed(2) + '%'
+                priceDifference: `${priceDiffPercent.toFixed(2)}%`,
+                profitTokens: profitTokens.toFixed(6)
               }
             });
           }
-        }
-        
-        // Direction 2: Buy on Uniswap, sell on Paraswap
-        if (uniswapAmountOut < paraswapAmountOut) {
+        } else if (uniswapAmountOut < paraswapAmountOut) {
+          // Buy on Uniswap, sell on Paraswap
           const profitTokens = (Number(paraswapAmountOut) - Number(uniswapAmountOut)) / Math.pow(10, targetToken.decimals);
           const tokenOutPrice = await getTokenPriceInUSD(pair.target);
           const grossProfitUSD = profitTokens * tokenOutPrice;
           const netProfitUSD = grossProfitUSD - network.gasUSD;
           
           if (netProfitUSD > MIN_PROFIT_USD) {
-            console.log(`   🎯 FOUND: Buy on Uniswap, sell on Paraswap`);
+            console.log(`   🎯 FOUND ARBITRAGE: Buy on Uniswap, sell on Paraswap`);
             console.log(`      Profit: $${netProfitUSD.toFixed(2)} (after gas)`);
             
             opportunities.push({
@@ -426,23 +451,22 @@ async function scanArbitrage(networkKey) {
               details: {
                 uniswapPrice: uniswapAmount.toFixed(6),
                 paraswapPrice: paraswapAmount.toFixed(6),
-                priceDifference: ((paraswapAmount / uniswapAmount - 1) * 100).toFixed(2) + '%'
+                priceDifference: `${priceDiffPercent.toFixed(2)}%`,
+                profitTokens: profitTokens.toFixed(6)
               }
             });
           }
-        }
-        
-        if (opportunities.length === 0) {
-          console.log(`   📈 Price diff: ${((Math.max(uniswapAmount, paraswapAmount) / Math.min(uniswapAmount, paraswapAmount) - 1) * 100).toFixed(2)}% (min profit: $${MIN_PROFIT_USD})`);
+        } else {
+          console.log(`   📊 No arbitrage opportunity (price diff too small)`);
         }
         
       } catch (error) {
-        console.error(`   ❌ Error processing ${pair.base}/${pair.target}:`, error.message);
+        console.error(`   ❌ Error:`, error.message);
         continue;
       }
       
     } catch (error) {
-      console.error(`❌ Error with pair ${pair.base}/${pair.target}:`, error.message);
+      console.error(`❌ Error with pair:`, error.message);
       continue;
     }
     
@@ -528,6 +552,7 @@ app.listen(PORT, () => {
   console.log(`🚀 DEX Arbitrage Scanner running on port ${PORT}`);
   console.log(`📊 Networks: ${Object.keys(NETWORKS).join(', ')}`);
   console.log(`💰 Min profit: $${MIN_PROFIT_USD}`);
+  console.log(`🔧 Using lowercase addresses to avoid checksum issues`);
   console.log(`=========================================`);
 });
 
