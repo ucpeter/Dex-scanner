@@ -13,19 +13,40 @@
     }
     .pulse { animation: pulse 2s infinite; }
     .token-icon {
-      width: 24px;
-      height: 24px;
+      width: 28px;
+      height: 28px;
       border-radius: 50%;
-      border: 1px solid #4b5563;
+      border: 2px solid #374151;
+      background: #1f2937;
+      object-fit: cover;
     }
-    .scanning {
-      background: linear-gradient(90deg, #059669, #10b981, #34d399, #059669);
-      background-size: 300% 100%;
-      animation: gradient 2s infinite linear;
+    .token-pair {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
     }
-    @keyframes gradient {
-      0% { background-position: 0% 50%; }
-      100% { background-position: 100% 50%; }
+    .token-icon-first {
+      z-index: 2;
+    }
+    .token-icon-second {
+      margin-left: -8px;
+      z-index: 1;
+    }
+    .profit-badge {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      font-weight: bold;
+      padding: 4px 8px;
+      border-radius: 6px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .profit-badge.low {
+      background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    }
+    .profit-badge.high {
+      background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
     }
   </style>
 </head>
@@ -35,15 +56,22 @@
       
       <!-- Header -->
       <div class="text-center mb-8">
-        <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">
-          <i class="fas fa-search-dollar mr-2"></i>Real-Time DEX Arbitrage Scanner
-        </h1>
-        <p class="text-gray-300">Uniswap V3 ↔ Paraswap V5 Arbitrage Opportunities</p>
-        <div class="mt-2 text-sm text-gray-400">
-          <span id="backendStatus" class="inline-flex items-center">
-            <span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-            Backend: Disconnected
-          </span>
+        <div class="flex items-center justify-center gap-3 mb-3">
+          <div class="p-3 bg-gradient-to-br from-cyan-500 to-blue-600 rounded-2xl">
+            <i class="fas fa-search-dollar text-white text-3xl"></i>
+          </div>
+          <div>
+            <h1 class="text-3xl md:text-4xl font-bold text-white">Real-Time DEX Arbitrage Scanner</h1>
+            <p class="text-gray-300 mt-1">Uniswap V3 ↔ Paraswap V5 Arbitrage Opportunities</p>
+          </div>
+        </div>
+        <div class="inline-flex items-center gap-2 bg-slate-800/50 px-4 py-2 rounded-full">
+          <div class="flex items-center gap-2">
+            <div class="w-3 h-3 rounded-full bg-red-500" id="connectionIndicator"></div>
+            <span id="backendStatus" class="text-sm text-gray-300">Checking connection...</span>
+          </div>
+          <span class="text-gray-500">•</span>
+          <span class="text-sm text-gray-400" id="tokenCount">Select network</span>
         </div>
       </div>
 
@@ -65,15 +93,15 @@
           <p class="text-lg md:text-xl font-bold text-white truncate" id="currentNetwork">Arbitrum</p>
         </div>
         <div class="bg-slate-800/70 backdrop-blur-sm rounded-xl p-4 border border-slate-700 shadow-lg">
-          <p class="text-gray-400 text-sm mb-1"><i class="fas fa-bolt mr-1"></i>Opportunities</p>
+          <p class="text-gray-400 text-sm mb-1"><i class="fas fa-bolt mr-1"></i>Live Opportunities</p>
           <p class="text-lg md:text-2xl font-bold text-white" id="totalOpps">0</p>
         </div>
         <div class="bg-slate-800/70 backdrop-blur-sm rounded-xl p-4 border border-slate-700 shadow-lg">
-          <p class="text-gray-400 text-sm mb-1"><i class="fas fa-money-bill-wave mr-1"></i>Avg Net Profit</p>
+          <p class="text-gray-400 text-sm mb-1"><i class="fas fa-money-bill-wave mr-1"></i>Avg Profit</p>
           <p class="text-lg md:text-2xl font-bold text-green-400" id="avgProfit">$0.00</p>
         </div>
         <div class="bg-slate-800/70 backdrop-blur-sm rounded-xl p-4 border border-slate-700 shadow-lg">
-          <p class="text-gray-400 text-sm mb-1"><i class="fas fa-sync-alt mr-1"></i>Scans</p>
+          <p class="text-gray-400 text-sm mb-1"><i class="fas fa-sync-alt mr-1"></i>Total Scans</p>
           <p class="text-lg md:text-2xl font-bold text-purple-400" id="scansCount">0</p>
         </div>
       </div>
@@ -82,23 +110,30 @@
       <div class="mb-6 bg-slate-800/70 backdrop-blur-sm rounded-xl p-5 border border-slate-700 shadow-lg">
         <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
           <div class="flex items-center gap-3">
-            <div class="w-3 h-3 rounded-full bg-green-500" id="scanIndicator"></div>
+            <div class="relative">
+              <div class="w-10 h-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
+                <i class="fas fa-search text-white"></i>
+              </div>
+              <div class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gray-500 border-2 border-slate-900" id="scanIndicator"></div>
+            </div>
             <div class="text-white">
-              <span id="scanStatus">Ready to scan</span>
-              <span id="scanTimer" class="text-sm text-gray-400 ml-2 hidden">Next scan in: <span id="countdown">10</span>s</span>
+              <span id="scanStatus" class="font-medium">Ready to scan</span>
+              <div id="scanTimer" class="text-sm text-gray-400 mt-1 hidden">
+                <i class="fas fa-clock mr-1"></i>Next scan in: <span id="countdown" class="font-bold">60</span>s
+              </div>
             </div>
           </div>
           <div class="flex gap-3">
-            <button id="singleScanButton" class="px-6 py-2.5 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all">
+            <button id="singleScanButton" class="px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 transition-all shadow-lg">
               <i class="fas fa-search mr-2"></i>Single Scan
             </button>
-            <button id="scanButton" class="px-6 py-2.5 rounded-lg font-semibold text-white bg-green-600 hover:bg-green-700 transition-all">
+            <button id="scanButton" class="px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 transition-all shadow-lg">
               <i class="fas fa-play mr-2"></i>Start Auto-Scan
             </button>
           </div>
         </div>
         <div class="mt-4 text-sm text-gray-400">
-          <p><i class="fas fa-info-circle mr-1"></i>Scanning all tokens on network. Each scan takes 30-60 seconds.</p>
+          <p><i class="fas fa-info-circle mr-1"></i>Scanning all tokens on the selected network. Each scan takes 30-60 seconds.</p>
         </div>
       </div>
 
@@ -112,53 +147,77 @@
 
       <!-- Opportunities Table -->
       <div class="bg-slate-800/70 backdrop-blur-sm rounded-xl p-5 border border-slate-700 shadow-lg">
-        <div class="flex justify-between items-center mb-5">
-          <h3 class="text-lg md:text-xl font-semibold text-white">
-            <i class="fas fa-chart-line mr-2"></i>Live Arbitrage Opportunities
-          </h3>
-          <div class="text-sm text-gray-400" id="lastUpdate">Last scan: Never</div>
+        <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-5 gap-3">
+          <div>
+            <h3 class="text-lg md:text-xl font-semibold text-white">
+              <i class="fas fa-chart-line mr-2"></i>Live Arbitrage Opportunities
+            </h3>
+            <p class="text-sm text-gray-400 mt-1">Sorted by highest profit. Minimum profit: $5.00</p>
+          </div>
+          <div class="text-sm text-gray-400 bg-slate-800/50 px-3 py-2 rounded-lg" id="lastUpdate">
+            <i class="fas fa-history mr-2"></i>Last scan: Never
+          </div>
         </div>
         
-        <div class="overflow-x-auto rounded-lg border border-slate-700">
+        <div class="overflow-x-auto rounded-xl border border-slate-700">
           <table class="min-w-full divide-y divide-slate-700">
             <thead class="bg-slate-800">
               <tr>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Pair</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Direction</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Size</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Profit</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Action</th>
+                <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Token Pair</th>
+                <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Direction</th>
+                <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Trade Size</th>
+                <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Profit</th>
+                <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Action</th>
               </tr>
             </thead>
             <tbody id="opportunitiesList" class="bg-slate-800/50 divide-y divide-slate-700">
               <tr>
-                <td colspan="5" class="px-4 py-12 text-center text-gray-400">
-                  <i class="fas fa-search fa-2x mb-3"></i>
-                  <p>No opportunities found yet. Start scanning to find arbitrage opportunities.</p>
+                <td colspan="5" class="px-6 py-16 text-center text-gray-400">
+                  <div class="flex flex-col items-center justify-center">
+                    <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4">
+                      <i class="fas fa-search text-2xl text-gray-600"></i>
+                    </div>
+                    <p class="text-lg font-medium text-gray-300 mb-2">No opportunities found yet</p>
+                    <p class="text-sm text-gray-500">Start scanning to discover arbitrage opportunities</p>
+                  </div>
                 </td>
               </tr>
             </tbody>
           </table>
         </div>
         
-        <div class="mt-4 text-sm text-gray-400">
-          <p><i class="fas fa-lightbulb mr-1"></i>Opportunities sorted by highest profit. Minimum profit: $5.00</p>
+        <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+          <div class="bg-slate-800/50 p-3 rounded-lg">
+            <p class="text-gray-400 mb-1"><i class="fas fa-lightbulb mr-2"></i>How it works</p>
+            <p class="text-gray-300">Scans price differences between Uniswap V3 and Paraswap V5</p>
+          </div>
+          <div class="bg-slate-800/50 p-3 rounded-lg">
+            <p class="text-gray-400 mb-1"><i class="fas fa-gas-pump mr-2"></i>Gas Cost</p>
+            <p class="text-gray-300">Net profit includes estimated gas costs for execution</p>
+          </div>
+          <div class="bg-slate-800/50 p-3 rounded-lg">
+            <p class="text-gray-400 mb-1"><i class="fas fa-shield-alt mr-2"></i>Safety</p>
+            <p class="text-gray-300">0.3% slippage protection applied to all calculations</p>
+          </div>
         </div>
       </div>
 
       <!-- Footer -->
-      <div class="mt-8 text-center text-gray-500 text-sm">
+      <div class="mt-8 pt-6 border-t border-slate-800 text-center text-gray-500 text-sm">
         <p>Real-Time DEX Arbitrage Scanner • Scanning Uniswap V3 vs Paraswap V5</p>
-        <p class="mt-1">Total tokens scanned per network: Arbitrum (70+), Polygon (70+), Optimism (40+)</p>
+        <p class="mt-1" id="backendUrlDisplay">Backend URL: <span id="currentBackendUrl" class="text-blue-400">Detecting...</span></p>
       </div>
 
     </div>
   </div>
 
   <script>
-    // Configuration - IMPORTANT: Update this URL to your backend
-    const BACKEND_URL = 'https://your-backend-service.onrender.com'; // Change this to your Render backend URL
-    // const BACKEND_URL = 'http://localhost:3001'; // For local testing
+    // Configuration - AUTO-DETECT BACKEND URL
+    // This automatically uses the same origin as the frontend
+    const BACKEND_URL = window.location.origin; // Same as frontend since they're hosted together
+    
+    console.log('Frontend URL:', window.location.origin);
+    console.log('Backend URL:', BACKEND_URL);
     
     // Application state
     let selectedNetwork = 'arbitrum';
@@ -166,6 +225,7 @@
     let scanInterval = null;
     let countdownInterval = null;
     let opportunities = [];
+    let tokenInfoCache = new Map();
     let stats = { 
       total: 0, 
       scans: 0, 
@@ -180,28 +240,35 @@
         color: 'bg-cyan-600', 
         borderColor: 'border-cyan-500',
         chainId: 42161,
-        icon: 'fas fa-bolt'
+        icon: 'fas fa-bolt',
+        tokenCount: '70+ tokens'
       },
       polygon: { 
         name: 'Polygon', 
         color: 'bg-purple-600', 
         borderColor: 'border-purple-500',
         chainId: 137,
-        icon: 'fas fa-gem'
+        icon: 'fas fa-gem',
+        tokenCount: '70+ tokens'
       },
       optimism: { 
         name: 'Optimism', 
         color: 'bg-red-600', 
         borderColor: 'border-red-500',
         chainId: 10,
-        icon: 'fas fa-rocket'
+        icon: 'fas fa-rocket',
+        tokenCount: '40+ tokens'
       }
     };
 
     // Initialize the application
     document.addEventListener('DOMContentLoaded', () => {
+      // Display current backend URL
+      document.getElementById('currentBackendUrl').textContent = BACKEND_URL;
+      
       initNetworkButtons();
       checkBackendConnection();
+      updateTokenCount();
       
       // Event listeners
       document.getElementById('scanButton').onclick = toggleAutoScan;
@@ -211,23 +278,61 @@
       selectNetwork(selectedNetwork);
     });
 
+    // Update token count display
+    function updateTokenCount() {
+      const network = NETWORKS[selectedNetwork];
+      document.getElementById('tokenCount').textContent = `Scanning ${network.tokenCount}`;
+    }
+
     // Check backend connection
     async function checkBackendConnection() {
       const statusEl = document.getElementById('backendStatus');
+      const indicatorEl = document.getElementById('connectionIndicator');
+      
       try {
-        const response = await fetch(`${BACKEND_URL}/health`, { timeout: 5000 });
+        console.log(`Checking backend connection at: ${BACKEND_URL}/health`);
+        const response = await fetch(`${BACKEND_URL}/health`, { 
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          timeout: 8000
+        });
+        
+        console.log('Health check response status:', response.status);
+        
         if (response.ok) {
-          statusEl.innerHTML = `<span class="w-2 h-2 bg-green-500 rounded-full mr-2"></span>Backend: Connected`;
-          console.log('Backend connection successful');
+          const data = await response.json();
+          console.log('Backend health data:', data);
+          
+          statusEl.textContent = 'Backend connected';
+          indicatorEl.className = 'w-3 h-3 rounded-full bg-green-500';
+          document.getElementById('backendStatus').classList.remove('text-red-400');
+          document.getElementById('backendStatus').classList.add('text-green-400');
+          
+          // Update backend URL display
+          document.getElementById('currentBackendUrl').textContent = BACKEND_URL;
+          document.getElementById('currentBackendUrl').classList.remove('text-red-400');
+          document.getElementById('currentBackendUrl').classList.add('text-green-400');
+          
           return true;
+        } else {
+          throw new Error(`HTTP ${response.status}`);
         }
       } catch (error) {
         console.error('Backend connection failed:', error);
+        
+        statusEl.textContent = 'Backend disconnected';
+        indicatorEl.className = 'w-3 h-3 rounded-full bg-red-500';
+        document.getElementById('backendStatus').classList.remove('text-green-400');
+        document.getElementById('backendStatus').classList.add('text-red-400');
+        
+        // Show error in backend URL display
+        document.getElementById('currentBackendUrl').textContent = `${BACKEND_URL} (Error: ${error.message})`;
+        document.getElementById('currentBackendUrl').classList.remove('text-green-400');
+        document.getElementById('currentBackendUrl').classList.add('text-red-400');
+        
+        setStatus('Cannot connect to backend server. The scanner may be starting up...', 'red');
+        return false;
       }
-      
-      statusEl.innerHTML = `<span class="w-2 h-2 bg-red-500 rounded-full mr-2"></span>Backend: Disconnected`;
-      setStatus('Cannot connect to backend server', 'red');
-      return false;
     }
 
     // Initialize network selection buttons
@@ -238,17 +343,15 @@
       Object.entries(NETWORKS).forEach(([key, network]) => {
         const button = document.createElement('button');
         button.id = `net-${key}`;
-        button.className = `p-4 rounded-xl border-2 transition-all ${key === selectedNetwork ? 
-          `${network.color} ${network.borderColor} text-white` : 
-          'bg-slate-700 border-slate-600 text-gray-300 hover:bg-slate-600'}`;
+        button.className = `p-4 rounded-xl border-2 transition-all flex flex-col items-center ${key === selectedNetwork ? 
+          `${network.color} ${network.borderColor} text-white shadow-lg` : 
+          'bg-slate-700 border-slate-600 text-gray-300 hover:bg-slate-600 hover:border-slate-500'}`;
         button.innerHTML = `
-          <div class="flex items-center justify-center gap-2">
-            <i class="${network.icon}"></i>
-            <div>
-              <div class="font-semibold">${network.name}</div>
-              <div class="text-xs mt-1">Chain ${network.chainId}</div>
-            </div>
-          </div>`;
+          <div class="flex items-center justify-center gap-2 mb-2">
+            <i class="${network.icon} text-lg"></i>
+            <div class="font-semibold text-center">${network.name}</div>
+          </div>
+          <div class="text-xs mt-1">${network.tokenCount}</div>`;
         button.onclick = () => selectNetwork(key);
         container.appendChild(button);
       });
@@ -269,58 +372,184 @@
       opportunities = [];
       stats = { total: 0, scans: 0, avgProfit: 0, lastScanTime: null };
       updateStats();
+      updateTokenCount();
       renderOpportunities();
       initNetworkButtons();
       setStatus(`Switched to ${NETWORKS[network].name} network`, 'blue');
+    }
+
+    // Get token icon URL with better fallback logic
+    function getTokenIconUrl(symbol) {
+      if (!symbol) return 'https://cryptocurrencyliveprices.com/img/eth-ethereum.png';
+      
+      // Clean symbol for URL
+      const cleanSymbol = symbol.replace('W', '').toUpperCase();
+      
+      // Try multiple icon sources
+      const sources = [
+        `https://cryptocurrencyliveprices.com/img/${cleanSymbol.toLowerCase()}-${cleanSymbol.toLowerCase()}.png`,
+        `https://cryptocurrencyliveprices.com/img/${cleanSymbol.toLowerCase()}.png`,
+        `https://cryptoicons.org/api/icon/${cleanSymbol.toLowerCase()}/200`,
+        `https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/${cleanSymbol.toLowerCase()}.svg`
+      ];
+      
+      return sources[0];
+    }
+
+    // Create token pair display with icons
+    function createTokenPairDisplay(tokenIn, tokenOut, pairText) {
+      // Extract symbols from various possible data structures
+      let tokenInSymbol = tokenIn?.symbol || (pairText ? pairText.split('/')[0] : 'Token');
+      let tokenOutSymbol = tokenOut?.symbol || (pairText ? pairText.split('/')[1] : 'Token');
+      
+      // Clean symbols
+      tokenInSymbol = tokenInSymbol.replace('W', '').toUpperCase();
+      tokenOutSymbol = tokenOutSymbol.replace('W', '').toUpperCase();
+      
+      // Get icon URLs
+      const tokenInIcon = getTokenIconUrl(tokenInSymbol);
+      const tokenOutIcon = getTokenIconUrl(tokenOutSymbol);
+      
+      return `
+        <div class="flex items-center gap-3">
+          <div class="token-pair">
+            <img src="${tokenInIcon}" 
+                 class="token-icon token-icon-first"
+                 alt="${tokenInSymbol}"
+                 onerror="this.onerror=null; this.src='https://cryptocurrencyliveprices.com/img/eth-ethereum.png'">
+            <img src="${tokenOutIcon}" 
+                 class="token-icon token-icon-second"
+                 alt="${tokenOutSymbol}"
+                 onerror="this.onerror=null; this.src='https://cryptocurrencyliveprices.com/img/eth-ethereum.png'">
+          </div>
+          <div>
+            <div class="font-bold text-white">${tokenInSymbol}/${tokenOutSymbol}</div>
+            <div class="text-xs text-gray-400 flex items-center gap-1">
+              <i class="fas fa-exchange-alt"></i>
+              <span>Swap pair</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // Create profit badge with appropriate color
+    function createProfitBadge(profit) {
+      const profitNum = parseFloat(profit) || 0;
+      let badgeClass = 'profit-badge';
+      
+      if (profitNum > 50) {
+        badgeClass += ' high';
+      } else if (profitNum > 20) {
+        // Default class (medium profit)
+      } else {
+        badgeClass += ' low';
+      }
+      
+      return `
+        <div class="${badgeClass}">
+          <i class="fas fa-arrow-up"></i>
+          $${profitNum.toFixed(2)}
+        </div>
+      `;
+    }
+
+    // Create direction badge
+    function createDirectionBadge(direction, dexBuy, dexSell) {
+      const dirText = direction || `${dexBuy || 'DEX'} → ${dexSell || 'DEX'}`;
+      const isParaswapFirst = dirText.includes('Paraswap') || (dexBuy && dexBuy.includes('Paraswap'));
+      
+      return `
+        <div class="inline-flex flex-col items-start">
+          <div class="px-3 py-1.5 rounded-lg text-xs font-medium ${isParaswapFirst ? 'bg-purple-900/80 text-purple-200' : 'bg-cyan-900/80 text-cyan-200'}">
+            ${dirText}
+          </div>
+          <div class="text-xs text-gray-500 mt-1">
+            <i class="fas fa-${isParaswapFirst ? 'random' : 'exchange-alt'} mr-1"></i>
+            ${isParaswapFirst ? 'Arbitrage' : 'Reverse arb'}
+          </div>
+        </div>
+      `;
     }
 
     // Perform a single scan
     async function performSingleScan() {
       if (isScanning) return;
       
+      // Check connection first
       const connected = await checkBackendConnection();
-      if (!connected) return;
+      if (!connected) {
+        setStatus('Cannot connect to backend server. Please wait for it to start or check the URL.', 'red');
+        return;
+      }
       
       setStatus(`Scanning ${NETWORKS[selectedNetwork].name} for opportunities...`, 'blue');
       document.getElementById('scanStatus').textContent = 'Scanning...';
       document.getElementById('scanIndicator').classList.add('pulse');
+      document.getElementById('singleScanButton').disabled = true;
       
       try {
-        const response = await fetch(`${BACKEND_URL}/api/scan/${selectedNetwork}`);
+        const scanUrl = `${BACKEND_URL}/api/scan/${selectedNetwork}`;
+        console.log(`Starting scan at: ${scanUrl}`);
+        
+        const response = await fetch(scanUrl, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        });
+        
+        console.log('Scan response status:', response.status);
         
         if (!response.ok) {
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+          const errorText = await response.text();
+          console.error('Scan failed with response:', errorText);
+          throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
         }
         
         const data = await response.json();
+        console.log('Scan response data:', data);
+        
         stats.scans++;
         
         if (data.success) {
           stats.lastScanTime = new Date();
-          document.getElementById('lastUpdate').textContent = `Last scan: ${formatTime(stats.lastScanTime)}`;
+          document.getElementById('lastUpdate').innerHTML = `
+            <i class="fas fa-history mr-2"></i>Last scan: ${formatTime(stats.lastScanTime)}
+          `;
           
           if (data.opportunities && data.opportunities.length > 0) {
-            // Add unique IDs to opportunities
+            console.log(`Found ${data.opportunities.length} opportunities`);
+            
+            // Add unique IDs and format opportunities
             const newOpps = data.opportunities.map(opp => ({
               ...opp,
               id: Date.now() + Math.random(),
-              timestamp: new Date().toISOString()
+              timestamp: new Date().toISOString(),
+              // Ensure we have proper token symbols
+              tokenIn: opp.tokenIn || { symbol: opp.pair?.split('/')[0] || 'Token' },
+              tokenOut: opp.tokenOut || { symbol: opp.pair?.split('/')[1] || 'Token' }
             }));
             
-            // Merge with existing opportunities (keep only latest 50)
+            // Merge with existing opportunities (keep only latest 30)
             opportunities = [...newOpps, ...opportunities]
-              .slice(0, 50)
-              .sort((a, b) => parseFloat(b.profitUSD || b.netProfitUSD) - parseFloat(a.profitUSD || a.netProfitUSD));
+              .slice(0, 30)
+              .sort((a, b) => {
+                const profitA = parseFloat(a.profitUSD || a.netProfitUSD || 0);
+                const profitB = parseFloat(b.profitUSD || b.netProfitUSD || 0);
+                return profitB - profitA; // Sort descending
+              });
             
-            stats.total += newOpps.length;
+            stats.total = opportunities.length;
             stats.avgProfit = opportunities.length > 0 ? 
               (opportunities.reduce((sum, opp) => sum + parseFloat(opp.profitUSD || opp.netProfitUSD || 0), 0) / opportunities.length).toFixed(2) : 
               '0.00';
             
             setStatus(`Found ${newOpps.length} opportunities on ${NETWORKS[selectedNetwork].name}`, 'green');
           } else {
-            opportunities = []; // Clear old opportunities if new scan found none
-            setStatus('No arbitrage opportunities found', 'yellow');
+            opportunities = [];
+            setStatus('No arbitrage opportunities found at this time', 'yellow');
           }
           
           updateStats();
@@ -334,6 +563,7 @@
       } finally {
         document.getElementById('scanStatus').textContent = 'Ready to scan';
         document.getElementById('scanIndicator').classList.remove('pulse');
+        document.getElementById('singleScanButton').disabled = false;
       }
     }
 
@@ -347,29 +577,28 @@
         clearInterval(countdownInterval);
         isScanning = false;
         scanButton.innerHTML = '<i class="fas fa-play mr-2"></i>Start Auto-Scan';
-        scanButton.className = 'px-6 py-2.5 rounded-lg font-semibold text-white bg-green-600 hover:bg-green-700 transition-all';
+        scanButton.className = 'px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 transition-all shadow-lg';
         document.getElementById('scanStatus').textContent = 'Stopped';
         document.getElementById('scanTimer').classList.add('hidden');
-        document.getElementById('scanIndicator').className = 'w-3 h-3 rounded-full bg-gray-500';
         setStatus('Auto-scan stopped', 'yellow');
       } else {
         // Start scanning
         isScanning = true;
         scanButton.innerHTML = '<i class="fas fa-stop mr-2"></i>Stop Auto-Scan';
-        scanButton.className = 'px-6 py-2.5 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700 transition-all';
-        document.getElementById('scanIndicator').className = 'w-3 h-3 rounded-full bg-green-500 pulse';
+        scanButton.className = 'px-6 py-3 rounded-xl font-semibold text-white bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-700 hover:to-rose-800 transition-all shadow-lg';
         document.getElementById('scanStatus').textContent = 'Auto-scanning...';
+        document.getElementById('scanTimer').classList.remove('hidden');
         
         // Perform first scan immediately
         performSingleScan();
         
-        // Set up interval for subsequent scans (every 60 seconds)
-        scanInterval = setInterval(performSingleScan, 60000);
+        // Set up interval for subsequent scans (every 90 seconds)
+        scanInterval = setInterval(performSingleScan, 90000);
         
         // Start countdown timer
-        startCountdown(60);
+        startCountdown(90);
         
-        setStatus('Auto-scan started (every 60 seconds)', 'green');
+        setStatus('Auto-scan started (every 90 seconds)', 'green');
       }
     }
 
@@ -387,7 +616,7 @@
         countdownEl.textContent = seconds;
         
         if (seconds <= 0) {
-          seconds = 60;
+          seconds = 90;
           countdownEl.textContent = seconds;
         }
       }, 1000);
@@ -437,69 +666,59 @@
       if (!opportunities || opportunities.length === 0) {
         container.innerHTML = `
           <tr>
-            <td colspan="5" class="px-4 py-12 text-center text-gray-400">
-              <i class="fas fa-search fa-2x mb-3"></i>
-              <p>No opportunities found yet. Start scanning to find arbitrage opportunities.</p>
+            <td colspan="5" class="px-6 py-16 text-center text-gray-400">
+              <div class="flex flex-col items-center justify-center">
+                <div class="w-16 h-16 rounded-full bg-slate-800 flex items-center justify-center mb-4">
+                  <i class="fas fa-search text-2xl text-gray-600"></i>
+                </div>
+                <p class="text-lg font-medium text-gray-300 mb-2">No opportunities found yet</p>
+                <p class="text-sm text-gray-500">Start scanning to discover arbitrage opportunities</p>
+              </div>
             </td>
           </tr>`;
         return;
       }
       
       container.innerHTML = opportunities.map(opp => `
-        <tr class="hover:bg-slate-700/50 transition-colors">
-          <td class="px-4 py-3">
-            <div class="flex items-center gap-2">
-              <div class="flex -space-x-2">
-                <img src="${getTokenIcon(opp.tokenIn?.symbol || opp.pair?.split('/')[0])}" 
-                     class="token-icon" 
-                     alt="${opp.tokenIn?.symbol || 'Token'}"
-                     onerror="this.src='https://cryptoicons.org/api/icon/eth/200'">
-                <img src="${getTokenIcon(opp.tokenOut?.symbol || opp.pair?.split('/')[1])}" 
-                     class="token-icon" 
-                     alt="${opp.tokenOut?.symbol || 'Token'}"
-                     onerror="this.src='https://cryptoicons.org/api/icon/usdc/200'">
-              </div>
-              <div>
-                <div class="font-medium text-white">${opp.pair || `${opp.tokenIn?.symbol}/${opp.tokenOut?.symbol}`}</div>
-                <div class="text-xs text-gray-400">${NETWORKS[selectedNetwork].name}</div>
+        <tr class="hover:bg-slate-700/30 transition-colors">
+          <td class="px-6 py-4">
+            ${createTokenPairDisplay(opp.tokenIn, opp.tokenOut, opp.pair)}
+          </td>
+          <td class="px-6 py-4">
+            ${createDirectionBadge(opp.direction, opp.dexBuy, opp.dexSell)}
+          </td>
+          <td class="px-6 py-4">
+            <div class="flex flex-col">
+              <div class="text-white font-bold text-lg">$${(opp.tradeSizeUSD || 1000).toLocaleString()}</div>
+              <div class="text-xs text-gray-400 mt-1">
+                <i class="fas fa-chart-bar mr-1"></i>Trade size
               </div>
             </div>
           </td>
-          <td class="px-4 py-3">
-            <div class="flex items-center gap-2">
-              <span class="px-2 py-1 rounded text-xs font-medium ${opp.direction?.includes('Paraswap') ? 'bg-purple-900 text-purple-200' : 'bg-cyan-900 text-cyan-200'}">
-                ${opp.direction || `${opp.dexBuy} → ${opp.dexSell}`}
-              </span>
+          <td class="px-6 py-4">
+            ${createProfitBadge(opp.profitUSD || opp.netProfitUSD)}
+            <div class="text-xs text-gray-400 mt-2">
+              <i class="fas fa-gas-pump mr-1"></i>Net after gas
             </div>
           </td>
-          <td class="px-4 py-3">
-            <div class="text-white font-medium">$${opp.tradeSizeUSD?.toLocaleString() || '1,000'}</div>
-            <div class="text-xs text-gray-400">Size</div>
-          </td>
-          <td class="px-4 py-3">
-            <div class="text-green-400 font-bold">+$${opp.profitUSD || opp.netProfitUSD || '0.00'}</div>
-            <div class="text-xs text-gray-400">Net profit</div>
-          </td>
-          <td class="px-4 py-3">
-            <button class="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors">
-              <i class="fas fa-exchange-alt mr-1"></i>Execute
-            </button>
+          <td class="px-6 py-4">
+            <div class="flex flex-col gap-2">
+              <button class="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg font-medium transition-all text-sm">
+                <i class="fas fa-bolt mr-2"></i>Execute Trade
+              </button>
+              <button class="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-gray-300 rounded-lg font-medium transition-all text-sm">
+                <i class="fas fa-chart-line mr-2"></i>View Details
+              </button>
+            </div>
           </td>
         </tr>
       `).join('');
     }
 
-    // Helper function to get token icon
-    function getTokenIcon(symbol) {
-      if (!symbol) return 'https://cryptoicons.org/api/icon/eth/200';
-      const cleanSymbol = symbol.replace('W', '').toLowerCase();
-      return `https://cryptoicons.org/api/icon/${cleanSymbol}/200`;
-    }
-
     // Helper function to format time
     function formatTime(date) {
       if (!date) return 'Never';
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     }
   </script>
 </body>
