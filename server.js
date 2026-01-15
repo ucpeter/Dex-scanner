@@ -3,6 +3,8 @@ const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
 const axios = require('axios');
+const path = require('path');
+const fs = require('fs');
 
 const app = express();
 app.use(cors({ origin: process.env.CORS_ORIGIN || '*' }));
@@ -522,6 +524,119 @@ async function calculateProfit(network, tokenIn, tokenOut, amountInWei, buyAmoun
 /* ============================================================
    API ROUTES
 ============================================================ */
+
+// First check if index.html exists
+const indexPath = path.join(__dirname, 'index.html');
+let indexHtml = null;
+
+try {
+  if (fs.existsSync(indexPath)) {
+    indexHtml = fs.readFileSync(indexPath, 'utf8');
+    console.log(`✅ Found index.html file at ${indexPath}`);
+  } else {
+    console.log(`❌ index.html not found at ${indexPath}`);
+    console.log(`Current directory: ${__dirname}`);
+    console.log(`Files in directory: ${fs.readdirSync(__dirname).join(', ')}`);
+  }
+} catch (error) {
+  console.error(`Error reading index.html: ${error.message}`);
+}
+
+// Serve index.html at root
+app.get('/', (req, res) => {
+  if (indexHtml) {
+    res.send(indexHtml);
+  } else {
+    res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>DEX Arbitrage Scanner</title>
+          <style>
+            body {
+              font-family: Arial, sans-serif;
+              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+              margin: 0;
+              padding: 20px;
+              min-height: 100vh;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+            }
+            .container {
+              background: white;
+              border-radius: 20px;
+              padding: 40px;
+              box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+              text-align: center;
+              max-width: 500px;
+            }
+            h1 {
+              color: #333;
+              margin-bottom: 20px;
+            }
+            p {
+              color: #666;
+              line-height: 1.6;
+              margin-bottom: 20px;
+            }
+            .api-link {
+              background: #4CAF50;
+              color: white;
+              padding: 12px 24px;
+              border-radius: 8px;
+              text-decoration: none;
+              display: inline-block;
+              margin: 10px;
+              transition: background 0.3s;
+            }
+            .api-link:hover {
+              background: #45a049;
+            }
+            .status {
+              background: #f0f0f0;
+              padding: 15px;
+              border-radius: 10px;
+              margin: 20px 0;
+            }
+            .error {
+              background: #ffebee;
+              color: #c62828;
+              padding: 15px;
+              border-radius: 10px;
+              margin: 20px 0;
+            }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <h1>🚀 DEX Arbitrage Scanner Backend</h1>
+            <p>Real-time arbitrage detection between Uniswap V3 and Paraswap V5</p>
+            
+            <div class="error">
+              <h3>⚠️ index.html not found</h3>
+              <p>The frontend HTML file could not be found. Check that index.html is in the same directory as server.js</p>
+            </div>
+            
+            <div class="status">
+              <h3>API Endpoints (Backend is working):</h3>
+              <a href="/health" class="api-link">Health Check</a>
+              <a href="/api/scan/arbitrum" class="api-link">Scan Arbitrum</a>
+              <a href="/api/scan/polygon" class="api-link">Scan Polygon</a>
+              <a href="/api/scan/optimism" class="api-link">Scan Optimism</a>
+            </div>
+            
+            <p>Upload your index.html file to the server directory to see the frontend.</p>
+          </div>
+        </body>
+      </html>
+    `);
+  }
+});
+
+// Serve static files from the current directory
+app.use(express.static(__dirname));
+
 app.get('/api/scan/:network', async (req, res) => {
   const { network } = req.params;
   
@@ -567,8 +682,22 @@ app.get('/health', (_, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     networks: Object.keys(NETWORKS),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    hasFrontend: indexHtml !== null
   });
+});
+
+// Catch-all route for frontend routing (for SPA)
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api/')) {
+    // API routes should return 404 if not found
+    res.status(404).json({ error: 'API endpoint not found' });
+  } else if (indexHtml) {
+    // For any other route, serve the index.html (for frontend routing)
+    res.send(indexHtml);
+  } else {
+    res.status(404).send('Not found');
+  }
 });
 
 /* ============================================================
@@ -577,6 +706,9 @@ app.get('/health', (_, res) => {
 app.listen(PORT, () => {
   console.log(`🚀 Arbitrage Scanner running on port ${PORT}`);
   console.log(`📊 Supported networks: ${Object.keys(NETWORKS).join(', ')}`);
+  console.log(`🌐 Frontend available at: http://localhost:${PORT}`);
+  console.log(`📁 Current directory: ${__dirname}`);
+  console.log(`📄 Index.html status: ${indexHtml ? 'Found ✓' : 'Not found ✗'}`);
 });
 
 module.exports = app;
