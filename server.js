@@ -1,3 +1,6 @@
+COMPLETE BACKEND - server.js
+
+```javascript
 const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
@@ -485,7 +488,7 @@ async function scanArbitrage(networkKey) {
               });
             }
           } else if (uniswapReverse < paraswapReverse) {
-            // Buy on Uniswap, sell on Paraswap (reverse)
+             // Buy on Uniswap, sell on Paraswap (reverse)
             const profitTokens = (Number(paraswapReverse) - Number(uniswapReverse)) / Math.pow(10, baseToken.decimals);
             const grossProfitUSD = profitTokens * basePrice;
             const profitUSD = grossProfitUSD - currentGasUSD;
