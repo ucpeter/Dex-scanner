@@ -18,7 +18,8 @@
       border-radius: 50%;
       border: 2px solid #374151;
       background: linear-gradient(135deg, #1f2937, #374151);
-      object-fit: cover;
+      object-fit: contain;
+      padding: 3px;
       box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
     }
     .token-pair {
@@ -372,15 +373,39 @@
       setStatus(`Switched to ${NETWORKS[network].name} network`, 'blue');
     }
 
-    // Get token icon URL
+    // Function to get reliable token icon - FIXED
     function getTokenIconUrl(symbol) {
-      const cleanSymbol = symbol.replace('W', '').toLowerCase();
-      return `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/32/color/${cleanSymbol}.png`;
+      const cleanSymbol = symbol.replace('W', '').toUpperCase();
+      
+      // Use reliable CDN with proper mapping
+      const iconMap = {
+        'ETH': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/eth.svg',
+        'USDC': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/usdc.svg',
+        'USDT': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/usdt.svg',
+        'DAI': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/dai.svg',
+        'WBTC': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/btc.svg',
+        'BTC': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/btc.svg',
+        'ARB': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg',
+        'LINK': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/link.svg',
+        'UNI': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/uni.svg',
+        'AAVE': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/aave.svg',
+        'CRV': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg',
+        'COMP': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/comp.svg',
+        'SUSHI': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/sushi.svg',
+        'GMX': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg',
+        'MAGIC': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg',
+        'MATIC': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/matic.svg',
+        'OP': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg',
+        'SNX': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/snx.svg',
+        'PERP': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg',
+        'QUICK': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg'
+      };
+      
+      return iconMap[cleanSymbol] || 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg';
     }
 
-    // Create token pair display with icons
+    // Function to create token pair display with working icons - FIXED
     function createTokenPairDisplay(tokenIn, tokenOut, pairText) {
-      // Use the actual symbol from backend
       let tokenInSymbol = tokenIn?.symbol || (pairText ? pairText.split('/')[0] : 'Token');
       let tokenOutSymbol = tokenOut?.symbol || (pairText ? pairText.split('/')[1] : 'Token');
       
@@ -390,11 +415,11 @@
             <img src="${getTokenIconUrl(tokenInSymbol)}" 
                  class="token-icon token-icon-first"
                  alt="${tokenInSymbol}"
-                 onerror="this.onerror=null; this.src='https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/32/color/generic.png'">
+                 onerror="this.onerror=null; this.src='https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg'">
             <img src="${getTokenIconUrl(tokenOutSymbol)}" 
                  class="token-icon token-icon-second"
                  alt="${tokenOutSymbol}"
-                 onerror="this.onerror=null; this.src='https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/32/color/generic.png'">
+                 onerror="this.onerror=null; this.src='https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg'">
           </div>
           <div>
             <div class="font-bold text-white">${tokenInSymbol}/${tokenOutSymbol}</div>
