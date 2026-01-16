@@ -147,18 +147,16 @@ function generatePairs(tokens) {
 }
 
 /* ============================================================
-   GAS ESTIMATION - FIXED ($0.40 for Polygon, not $555)
+   GAS ESTIMATION - FIXED
 ============================================================ */
 async function estimateGasCost(networkKey) {
-  // FIXED GAS COSTS
   const fixedGasCosts = {
-    arbitrum: 1.5,   // $1.50 on Arbitrum
-    polygon: 0.4,    // $0.40 on Polygon (NOT $555!)
-    optimism: 0.8    // $0.80 on Optimism
+    arbitrum: 1.5,
+    polygon: 0.4,
+    optimism: 0.8
   };
   
   const gasCost = fixedGasCosts[networkKey] || 1.0;
-  console.log(`   Gas cost: $${gasCost.toFixed(2)} (fixed for ${NETWORKS[networkKey].name})`);
   return gasCost;
 }
 
@@ -171,8 +169,6 @@ async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
       staticNetwork: true
     });
     
-    console.log(`   Uniswap: ${tokenIn.symbol}->${tokenOut.symbol}`);
-    
     const quoter = new ethers.Contract(network.uniswapQuoter, QUOTER_ABI, provider);
     
     const fees = [500, 3000, 10000];
@@ -180,8 +176,6 @@ async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
     
     for (const fee of fees) {
       try {
-        console.log(`   Trying fee ${fee}...`);
-        
         const amountOut = await quoter.quoteExactInputSingle.staticCall(
           tokenIn.address,
           tokenOut.address,
@@ -190,32 +184,20 @@ async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
           0
         );
         
-        console.log(`   Fee ${fee}: ${amountOut.toString()}`);
-        
         if (amountOut > bestQuote) {
           bestQuote = amountOut;
         }
       } catch (error) {
-        const errorMsg = error.shortMessage || error.message;
-        if (errorMsg.includes('reverted') || 
-            errorMsg.includes('Unexpected error') ||
-            errorMsg.includes('no data present')) {
-          console.log(`   Fee ${fee}: No liquidity`);
-          continue;
-        }
-        console.log(`   Fee ${fee} failed: ${errorMsg}`);
+        continue;
       }
     }
     
     if (bestQuote > 0n) {
-      console.log(`   ✅ Uniswap best quote: ${bestQuote.toString()}`);
       return bestQuote;
     } else {
-      console.log(`   ❌ No Uniswap quotes available`);
       return null;
     }
   } catch (error) {
-    console.error(`   ❌ Uniswap quote error:`, error.shortMessage || error.message);
     return null;
   }
 }
@@ -234,25 +216,17 @@ async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
       side: 'SELL'
     };
 
-    console.log(`   Paraswap: ${tokenIn.symbol}->${tokenOut.symbol}`);
-
     const response = await axios.get(url, { 
       params, 
       timeout: 15000
     });
     
-    console.log(`   Paraswap response: ${response.status}`);
-    
     if (response.data?.priceRoute?.destAmount) {
-      const destAmount = BigInt(response.data.priceRoute.destAmount);
-      console.log(`   ✅ Paraswap quote: ${destAmount.toString()}`);
-      return destAmount;
+      return BigInt(response.data.priceRoute.destAmount);
     } else {
-      console.log(`   ❌ Paraswap no price route`);
       return null;
     }
   } catch (error) {
-    console.error(`   ❌ Paraswap error:`, error.response?.status || error.message);
     return null;
   }
 }
@@ -284,17 +258,8 @@ async function getTokenPriceInUSD(symbol) {
   return price;
 }
 
-
-        console.log(`❌ Skipping ${pair.base}/${pair.target}: Token not found`);
-        continue;
-      }
-      
-      /* ============================================================
-   CORE ARBITRAGE SCANNER - COMPLETE VERSION
-   Checks ALL possible arbitrage paths:
-   1. Forward: TokenA → TokenB on both DEXes
-   2. Reverse: TokenB → TokenA on both DEXes  
-   3. Full cycle: TokenA → TokenB → TokenA across DEXes
+/* ============================================================
+   CORE ARBITRAGE SCANNER - SIMPLIFIED AND CORRECT
 ============================================================ */
 async function scanArbitrage(networkKey) {
   const network = NETWORKS[networkKey];
@@ -306,11 +271,9 @@ async function scanArbitrage(networkKey) {
   
   console.log(`\n=========================================`);
   console.log(`🚀 Scanning ${pairs.length} pairs on ${network.name}...`);
-  console.log(`📊 Checking ALL arbitrage paths (forward/reverse/cycle)`);
   console.log(`=========================================\n`);
   
   const currentGasUSD = await estimateGasCost(networkKey);
-  console.log(`⛽ Estimated gas cost: $${currentGasUSD}\n`);
   
   for (let i = 0; i < pairs.length; i++) {
     const pair = pairs[i];
@@ -320,7 +283,6 @@ async function scanArbitrage(networkKey) {
       const targetToken = TOKEN_ADDRESSES[networkKey][pair.target];
       
       if (!baseToken || !targetToken) {
-        console.log(`❌ Skipping ${pair.base}/${pair.target}: Token not found`);
         continue;
       }
       
@@ -331,280 +293,240 @@ async function scanArbitrage(networkKey) {
       const targetPrice = await getTokenPriceInUSD(pair.target);
       
       if (!basePrice || !targetPrice) {
-        console.log(`❌ Skipping ${pair.base}/${pair.target}: No price data`);
         continue;
       }
       
       const sizeUSD = 1000;
       
-      console.log(`\n🔍 [${i+1}/${pairs.length}] ${pair.base} ↔ ${pair.target} ($${sizeUSD})`);
+      console.log(`\n🔍 [${i+1}/${pairs.length}] ${pair.base} ↔ ${pair.target}`);
       
       try {
-        // Calculate amount in token units
+        // FORWARD DIRECTION: base → target
         const amountInTokens = sizeUSD / basePrice;
         const amountInWei = ethers.parseUnits(
           amountInTokens.toFixed(Math.min(6, baseToken.decimals)),
           baseToken.decimals
         );
         
-        console.log(`   Amount: ${amountInTokens.toFixed(6)} ${pair.base}`);
+        console.log(`   Forward: ${pair.base} → ${pair.target} ($${sizeUSD})`);
         
-        // ============================================
-        // SCENARIO 1: Forward (TokenA → TokenB)
-        // ============================================
-        console.log(`   📈 SCENARIO 1: ${pair.base} → ${pair.target}`);
-        
-        console.log(`      ⏳ Getting Uniswap quote...`);
+        // Get quotes for forward direction
         const uniswapForward = await getUniswapV3Quote(network, baseTokenWithSymbol, targetTokenWithSymbol, amountInWei);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const paraswapForward = await getParaswapQuote(network, baseTokenWithSymbol, targetTokenWithSymbol, amountInWei);
         
-        if (!uniswapForward) {
-          console.log(`      ⏭️  Skipping forward: No Uniswap quote`);
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        if (uniswapForward && paraswapForward) {
+          const uniswapAmount = Number(uniswapForward) / Math.pow(10, targetToken.decimals);
+          const paraswapAmount = Number(paraswapForward) / Math.pow(10, targetToken.decimals);
           
-          console.log(`      ⏳ Getting Paraswap quote...`);
-          const paraswapForward = await getParaswapQuote(network, baseTokenWithSymbol, targetTokenWithSymbol, amountInWei);
+          console.log(`   Uniswap: ${uniswapAmount.toFixed(6)} ${pair.target}`);
+          console.log(`   Paraswap: ${paraswapAmount.toFixed(6)} ${pair.target}`);
           
-          if (paraswapForward) {
-            const uniswapAmount = Number(uniswapForward) / Math.pow(10, targetToken.decimals);
-            const paraswapAmount = Number(paraswapForward) / Math.pow(10, targetToken.decimals);
+          const priceDiffPercent = Math.abs((uniswapAmount - paraswapAmount) / Math.max(uniswapAmount, paraswapAmount)) * 100;
+          console.log(`   Price difference: ${priceDiffPercent.toFixed(2)}%`);
+          
+          // Check forward arbitrage
+          if (paraswapForward < uniswapForward) {
+            // Buy on Paraswap, sell on Uniswap
+            const profitTokens = (Number(uniswapForward) - Number(paraswapForward)) / Math.pow(10, targetToken.decimals);
+            const grossProfitUSD = profitTokens * targetPrice;
+            const profitUSD = grossProfitUSD - currentGasUSD;
             
-            console.log(`      📊 Forward quotes:`);
-            console.log(`        Uniswap V3:  ${uniswapAmount.toFixed(6)} ${pair.target}`);
-            console.log(`        Paraswap V5: ${paraswapAmount.toFixed(6)} ${pair.target}`);
-            
-            const priceDiffPercent = Math.abs((uniswapAmount - paraswapAmount) / Math.max(uniswapAmount, paraswapAmount)) * 100;
-            console.log(`      📈 Price difference: ${priceDiffPercent.toFixed(2)}%`);
-            
-            // Check forward arbitrage
-            if (paraswapForward < uniswapForward) {
-              // Buy on Paraswap, sell on Uniswap (Paraswap → Uniswap)
-              const profitTokens = (Number(uniswapForward) - Number(paraswapForward)) / Math.pow(10, targetToken.decimals);
-              const grossProfitUSD = profitTokens * targetPrice;
-              const profitUSD = grossProfitUSD - currentGasUSD;
+            if (profitUSD > MIN_PROFIT_USD && priceDiffPercent <= 50) {
+              console.log(`   🎯 ARBITRAGE: Paraswap → Uniswap`);
+              console.log(`      Profit: $${profitUSD.toFixed(2)}`);
               
-              if (profitUSD > MIN_PROFIT_USD && priceDiffPercent <= 50) {
-                console.log(`      🎯 FORWARD ARBITRAGE: Paraswap → Uniswap`);
-                console.log(`         Profit: $${profitUSD.toFixed(2)} (after gas)`);
-                
-                opportunities.push(createOpportunity(
-                  networkKey,
-                  pair,
-                  baseToken,
-                  targetToken,
-                  sizeUSD,
-                  profitUSD,
-                  currentGasUSD,
-                  'Paraswap → Uniswap',
-                  'Paraswap V5',
-                  'Uniswap V3',
-                  uniswapAmount,
-                  paraswapAmount,
-                  priceDiffPercent,
-                  'forward'
-                ));
-              }
-            } else if (uniswapForward < paraswapForward) {
-              // Buy on Uniswap, sell on Paraswap (Uniswap → Paraswap)
-              const profitTokens = (Number(paraswapForward) - Number(uniswapForward)) / Math.pow(10, targetToken.decimals);
-              const grossProfitUSD = profitTokens * targetPrice;
-              const profitUSD = grossProfitUSD - currentGasUSD;
+              opportunities.push({
+                id: Date.now() + Math.random().toString(36).substr(2, 9),
+                network: networkKey,
+                pair: `${pair.base}/${pair.target}`,
+                direction: 'Paraswap → Uniswap',
+                scenario: 'forward',
+                tokenIn: { 
+                  symbol: pair.base,
+                  address: baseToken.address,
+                  decimals: baseToken.decimals
+                },
+                tokenOut: { 
+                  symbol: pair.target,
+                  address: targetToken.address,
+                  decimals: targetToken.decimals
+                },
+                tradeSizeUSD: sizeUSD,
+                profitUSD: profitUSD.toFixed(2),
+                netProfitUSD: profitUSD.toFixed(2),
+                gasCostUSD: currentGasUSD.toFixed(2),
+                dexBuy: 'Paraswap V5',
+                dexSell: 'Uniswap V3',
+                timestamp: new Date().toISOString(),
+                details: {
+                  priceDifference: `${priceDiffPercent.toFixed(2)}%`,
+                  buyAmount: paraswapAmount.toFixed(6),
+                  sellAmount: uniswapAmount.toFixed(6),
+                  buyDex: 'Paraswap V5',
+                  sellDex: 'Uniswap V3',
+                  scenario: 'forward'
+                }
+              });
+            }
+          } else if (uniswapForward < paraswapForward) {
+            // Buy on Uniswap, sell on Paraswap
+            const profitTokens = (Number(paraswapForward) - Number(uniswapForward)) / Math.pow(10, targetToken.decimals);
+            const grossProfitUSD = profitTokens * targetPrice;
+            const profitUSD = grossProfitUSD - currentGasUSD;
+            
+            if (profitUSD > MIN_PROFIT_USD && priceDiffPercent <= 50) {
+              console.log(`   🎯 ARBITRAGE: Uniswap → Paraswap`);
+              console.log(`      Profit: $${profitUSD.toFixed(2)}`);
               
-              if (profitUSD > MIN_PROFIT_USD && priceDiffPercent <= 50) {
-                console.log(`      🎯 FORWARD ARBITRAGE: Uniswap → Paraswap`);
-                console.log(`         Profit: $${profitUSD.toFixed(2)} (after gas)`);
-                
-                opportunities.push(createOpportunity(
-                  networkKey,
-                  pair,
-                  baseToken,
-                  targetToken,
-                  sizeUSD,
-                  profitUSD,
-                  currentGasUSD,
-                  'Uniswap → Paraswap',
-                  'Uniswap V3',
-                  'Paraswap V5',
-                  uniswapAmount,
-                  paraswapAmount,
-                  priceDiffPercent,
-                  'forward'
-                ));
-              }
+              opportunities.push({
+                id: Date.now() + Math.random().toString(36).substr(2, 9),
+                network: networkKey,
+                pair: `${pair.base}/${pair.target}`,
+                direction: 'Uniswap → Paraswap',
+                scenario: 'forward',
+                tokenIn: { 
+                  symbol: pair.base,
+                  address: baseToken.address,
+                  decimals: baseToken.decimals
+                },
+                tokenOut: { 
+                  symbol: pair.target,
+                  address: targetToken.address,
+                  decimals: targetToken.decimals
+                },
+                tradeSizeUSD: sizeUSD,
+                profitUSD: profitUSD.toFixed(2),
+                netProfitUSD: profitUSD.toFixed(2),
+                gasCostUSD: currentGasUSD.toFixed(2),
+                dexBuy: 'Uniswap V3',
+                dexSell: 'Paraswap V5',
+                timestamp: new Date().toISOString(),
+                details: {
+                  priceDifference: `${priceDiffPercent.toFixed(2)}%`,
+                  buyAmount: uniswapAmount.toFixed(6),
+                  sellAmount: paraswapAmount.toFixed(6),
+                  buyDex: 'Uniswap V3',
+                  sellDex: 'Paraswap V5',
+                  scenario: 'forward'
+                }
+              });
             }
           }
         }
         
-        // ============================================
-        // SCENARIO 2: Reverse (TokenB → TokenA)
-        // ============================================
-        console.log(`   📈 SCENARIO 2: ${pair.target} → ${pair.base}`);
+        // REVERSE DIRECTION: target → base
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        console.log(`   Reverse: ${pair.target} → ${pair.base} ($${sizeUSD})`);
         
-        // Calculate reverse amount (equivalent USD value)
         const reverseAmountTokens = sizeUSD / targetPrice;
         const reverseAmountWei = ethers.parseUnits(
           reverseAmountTokens.toFixed(Math.min(6, targetToken.decimals)),
           targetToken.decimals
         );
         
-        console.log(`      Amount: ${reverseAmountTokens.toFixed(6)} ${pair.target}`);
-        
-        console.log(`      ⏳ Getting Uniswap reverse quote...`);
+        // Get quotes for reverse direction
         const uniswapReverse = await getUniswapV3Quote(network, targetTokenWithSymbol, baseTokenWithSymbol, reverseAmountWei);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        const paraswapReverse = await getParaswapQuote(network, targetTokenWithSymbol, baseTokenWithSymbol, reverseAmountWei);
         
-        if (!uniswapReverse) {
-          console.log(`      ⏭️  Skipping reverse: No Uniswap quote`);
-        } else {
-          await new Promise(resolve => setTimeout(resolve, 1000));
+        if (uniswapReverse && paraswapReverse) {
+          const uniswapReverseAmount = Number(uniswapReverse) / Math.pow(10, baseToken.decimals);
+          const paraswapReverseAmount = Number(paraswapReverse) / Math.pow(10, baseToken.decimals);
           
-          console.log(`      ⏳ Getting Paraswap reverse quote...`);
-          const paraswapReverse = await getParaswapQuote(network, targetTokenWithSymbol, baseTokenWithSymbol, reverseAmountWei);
+          console.log(`   Uniswap: ${uniswapReverseAmount.toFixed(6)} ${pair.base}`);
+          console.log(`   Paraswap: ${paraswapReverseAmount.toFixed(6)} ${pair.base}`);
           
-          if (paraswapReverse) {
-            const uniswapReverseAmount = Number(uniswapReverse) / Math.pow(10, baseToken.decimals);
-            const paraswapReverseAmount = Number(paraswapReverse) / Math.pow(10, baseToken.decimals);
+          const reversePriceDiffPercent = Math.abs((uniswapReverseAmount - paraswapReverseAmount) / Math.max(uniswapReverseAmount, paraswapReverseAmount)) * 100;
+          console.log(`   Price difference: ${reversePriceDiffPercent.toFixed(2)}%`);
+          
+          // Check reverse arbitrage
+          if (paraswapReverse < uniswapReverse) {
+            // Buy on Paraswap, sell on Uniswap (reverse)
+            const profitTokens = (Number(uniswapReverse) - Number(paraswapReverse)) / Math.pow(10, baseToken.decimals);
+            const grossProfitUSD = profitTokens * basePrice;
+            const profitUSD = grossProfitUSD - currentGasUSD;
             
-            console.log(`      📊 Reverse quotes:`);
-            console.log(`        Uniswap V3:  ${uniswapReverseAmount.toFixed(6)} ${pair.base}`);
-            console.log(`        Paraswap V5: ${paraswapReverseAmount.toFixed(6)} ${pair.base}`);
-            
-            const reversePriceDiffPercent = Math.abs((uniswapReverseAmount - paraswapReverseAmount) / Math.max(uniswapReverseAmount, paraswapReverseAmount)) * 100;
-            console.log(`      📈 Reverse price difference: ${reversePriceDiffPercent.toFixed(2)}%`);
-            
-            // Check reverse arbitrage
-            if (paraswapReverse < uniswapReverse) {
-              // Buy on Paraswap, sell on Uniswap (Paraswap → Uniswap)
-              const profitTokens = (Number(uniswapReverse) - Number(paraswapReverse)) / Math.pow(10, baseToken.decimals);
-              const grossProfitUSD = profitTokens * basePrice;
-              const profitUSD = grossProfitUSD - currentGasUSD;
+            if (profitUSD > MIN_PROFIT_USD && reversePriceDiffPercent <= 50) {
+              console.log(`   🎯 REVERSE ARBITRAGE: Paraswap → Uniswap`);
+              console.log(`      Profit: $${profitUSD.toFixed(2)}`);
               
-              if (profitUSD > MIN_PROFIT_USD && reversePriceDiffPercent <= 50) {
-                console.log(`      🎯 REVERSE ARBITRAGE: Paraswap → Uniswap`);
-                console.log(`         Profit: $${profitUSD.toFixed(2)} (after gas)`);
-                
-                opportunities.push(createOpportunity(
-                  networkKey,
-                  { base: pair.target, target: pair.base }, // Swapped pair
-                  targetToken,
-                  baseToken,
-                  sizeUSD,
-                  profitUSD,
-                  currentGasUSD,
-                  'Paraswap → Uniswap',
-                  'Paraswap V5',
-                  'Uniswap V3',
-                  uniswapReverseAmount,
-                  paraswapReverseAmount,
-                  reversePriceDiffPercent,
-                  'reverse'
-                ));
-              }
-            } else if (uniswapReverse < paraswapReverse) {
-              // Buy on Uniswap, sell on Paraswap (Uniswap → Paraswap)
-              const profitTokens = (Number(paraswapReverse) - Number(uniswapReverse)) / Math.pow(10, baseToken.decimals);
-              const grossProfitUSD = profitTokens * basePrice;
-              const profitUSD = grossProfitUSD - currentGasUSD;
-              
-              if (profitUSD > MIN_PROFIT_USD && reversePriceDiffPercent <= 50) {
-                console.log(`      🎯 REVERSE ARBITRAGE: Uniswap → Paraswap`);
-                console.log(`         Profit: $${profitUSD.toFixed(2)} (after gas)`);
-                
-                opportunities.push(createOpportunity(
-                  networkKey,
-                  { base: pair.target, target: pair.base }, // Swapped pair
-                  targetToken,
-                  baseToken,
-                  sizeUSD,
-                  profitUSD,
-                  currentGasUSD,
-                  'Uniswap → Paraswap',
-                  'Uniswap V3',
-                  'Paraswap V5',
-                  uniswapReverseAmount,
-                  paraswapReverseAmount,
-                  reversePriceDiffPercent,
-                  'reverse'
-                ));
-              }
+              opportunities.push({
+                id: Date.now() + Math.random().toString(36).substr(2, 9),
+                network: networkKey,
+                pair: `${pair.target}/${pair.base}`,
+                direction: 'Paraswap → Uniswap',
+                scenario: 'reverse',
+                tokenIn: { 
+                  symbol: pair.target,
+                  address: targetToken.address,
+                  decimals: targetToken.decimals
+                },
+                tokenOut: { 
+                  symbol: pair.base,
+                  address: baseToken.address,
+                  decimals: baseToken.decimals
+                },
+                tradeSizeUSD: sizeUSD,
+                profitUSD: profitUSD.toFixed(2),
+                netProfitUSD: profitUSD.toFixed(2),
+                gasCostUSD: currentGasUSD.toFixed(2),
+                dexBuy: 'Paraswap V5',
+                dexSell: 'Uniswap V3',
+                timestamp: new Date().toISOString(),
+                details: {
+                  priceDifference: `${reversePriceDiffPercent.toFixed(2)}%`,
+                  buyAmount: paraswapReverseAmount.toFixed(6),
+                  sellAmount: uniswapReverseAmount.toFixed(6),
+                  buyDex: 'Paraswap V5',
+                  sellDex: 'Uniswap V3',
+                  scenario: 'reverse'
+                }
+              });
             }
-          }
-        }
-        
-        // ============================================
-        // SCENARIO 3: Full Cycle (TokenA → TokenB → TokenA)
-        // ============================================
-        console.log(`   📈 SCENARIO 3: ${pair.base} → ${pair.target} → ${pair.base} (Full Cycle)`);
-        
-        if (uniswapForward && paraswapForward) {
-          const uniswapAmount = Number(uniswapForward) / Math.pow(10, targetToken.decimals);
-          const paraswapAmount = Number(paraswapForward) / Math.pow(10, targetToken.decimals);
-          
-          // Calculate full cycle profit
-          // Option A: Buy on Uniswap, sell on Paraswap
-          const cycleProfitA = calculateFullCycleProfit(
-            amountInWei,
-            uniswapForward,
-            paraswapReverse, // Need reverse quote for selling
-            baseToken.decimals,
-            targetToken.decimals,
-            basePrice,
-            targetPrice
-          );
-          
-          // Option B: Buy on Paraswap, sell on Uniswap
-          const cycleProfitB = calculateFullCycleProfit(
-            amountInWei,
-            paraswapForward,
-            uniswapReverse, // Need reverse quote for selling
-            baseToken.decimals,
-            targetToken.decimals,
-            basePrice,
-            targetPrice
-          );
-          
-          // Check both cycle options
-          if (cycleProfitA > MIN_PROFIT_USD) {
-            console.log(`      🎯 CYCLE ARBITRAGE: ${pair.base} → ${pair.target} (Uniswap) → ${pair.base} (Paraswap)`);
-            console.log(`         Profit: $${cycleProfitA.toFixed(2)} (after gas)`);
+          } else if (uniswapReverse < paraswapReverse) {
+            // Buy on Uniswap, sell on Paraswap (reverse)
+            const profitTokens = (Number(paraswapReverse) - Number(uniswapReverse)) / Math.pow(10, baseToken.decimals);
+            const grossProfitUSD = profitTokens * basePrice;
+            const profitUSD = grossProfitUSD - currentGasUSD;
             
-            opportunities.push(createOpportunity(
-              networkKey,
-              pair,
-              baseToken,
-              targetToken,
-              sizeUSD,
-              cycleProfitA,
-              currentGasUSD,
-              `Cycle: ${pair.base}→${pair.target}→${pair.base}`,
-              'Uniswap V3',
-              'Paraswap V5',
-              uniswapAmount,
-              paraswapAmount,
-              0, // Will be calculated differently
-              'cycle'
-            ));
-          }
-          
-          if (cycleProfitB > MIN_PROFIT_USD) {
-            console.log(`      🎯 CYCLE ARBITRAGE: ${pair.base} → ${pair.target} (Paraswap) → ${pair.base} (Uniswap)`);
-            console.log(`         Profit: $${cycleProfitB.toFixed(2)} (after gas)`);
-            
-            opportunities.push(createOpportunity(
-              networkKey,
-              pair,
-              baseToken,
-              targetToken,
-              sizeUSD,
-              cycleProfitB,
-              currentGasUSD,
-              `Cycle: ${pair.base}→${pair.target}→${pair.base}`,
-              'Paraswap V5',
-              'Uniswap V3',
-              paraswapAmount,
-              uniswapAmount,
-              0, // Will be calculated differently
-              'cycle'
-            ));
+            if (profitUSD > MIN_PROFIT_USD && reversePriceDiffPercent <= 50) {
+              console.log(`   🎯 REVERSE ARBITRAGE: Uniswap → Paraswap`);
+              console.log(`      Profit: $${profitUSD.toFixed(2)}`);
+              
+              opportunities.push({
+                id: Date.now() + Math.random().toString(36).substr(2, 9),
+                network: networkKey,
+                pair: `${pair.target}/${pair.base}`,
+                direction: 'Uniswap → Paraswap',
+                scenario: 'reverse',
+                tokenIn: { 
+                  symbol: pair.target,
+                  address: targetToken.address,
+                  decimals: targetToken.decimals
+                },
+                tokenOut: { 
+                  symbol: pair.base,
+                  address: baseToken.address,
+                  decimals: baseToken.decimals
+                },
+                tradeSizeUSD: sizeUSD,
+                profitUSD: profitUSD.toFixed(2),
+                netProfitUSD: profitUSD.toFixed(2),
+                gasCostUSD: currentGasUSD.toFixed(2),
+                dexBuy: 'Uniswap V3',
+                dexSell: 'Paraswap V5',
+                timestamp: new Date().toISOString(),
+                details: {
+                  priceDifference: `${reversePriceDiffPercent.toFixed(2)}%`,
+                  buyAmount: uniswapReverseAmount.toFixed(6),
+                  sellAmount: paraswapReverseAmount.toFixed(6),
+                  buyDex: 'Uniswap V3',
+                  sellDex: 'Paraswap V5',
+                  scenario: 'reverse'
+                }
+              });
+            }
           }
         }
         
@@ -626,94 +548,6 @@ async function scanArbitrage(networkKey) {
   console.log(`=========================================\n`);
   return opportunities;
 }
-
-/* ============================================================
-   HELPER: Create Opportunity Object
-============================================================ */
-function createOpportunity(
-  networkKey,
-  pair,
-  tokenIn,
-  tokenOut,
-  tradeSizeUSD,
-  profitUSD,
-  gasCostUSD,
-  direction,
-  dexBuy,
-  dexSell,
-  amountBuy,
-  amountSell,
-  priceDiffPercent,
-  scenario
-) {
-  return {
-    id: Date.now() + Math.random().toString(36).substr(2, 9),
-    network: networkKey,
-    pair: `${pair.base}/${pair.target}`,
-    direction: direction,
-    scenario: scenario, // 'forward', 'reverse', or 'cycle'
-    tokenIn: { 
-      symbol: pair.base,
-      address: tokenIn.address,
-      decimals: tokenIn.decimals
-    },
-    tokenOut: { 
-      symbol: pair.target,
-      address: tokenOut.address,
-      decimals: tokenOut.decimals
-    },
-    tradeSizeUSD: tradeSizeUSD,
-    profitUSD: profitUSD.toFixed(2),
-    netProfitUSD: profitUSD.toFixed(2),
-    gasCostUSD: gasCostUSD.toFixed(2),
-    dexBuy: dexBuy,
-    dexSell: dexSell,
-    timestamp: new Date().toISOString(),
-    details: {
-      priceDifference: `${priceDiffPercent.toFixed(2)}%`,
-      buyAmount: amountBuy.toFixed(6),
-      sellAmount: amountSell.toFixed(6),
-      scenario: scenario
-    }
-  };
-}
-
-/* ============================================================
-   HELPER: Calculate Full Cycle Profit
-============================================================ */
-function calculateFullCycleProfit(
-  amountInWei,
-  forwardQuote,
-  reverseQuote,
-  baseDecimals,
-  targetDecimals,
-  basePriceUSD,
-  targetPriceUSD
-) {
-  if (!forwardQuote || !reverseQuote) return 0;
-  
-  try {
-    // Convert to readable amounts
-    const forwardAmount = Number(forwardQuote) / Math.pow(10, targetDecimals);
-    const reverseAmount = Number(reverseQuote) / Math.pow(10, baseDecimals);
-    
-    // Calculate profit
-    // Starting with amountInWei of base token
-    // After forward swap: forwardAmount of target token
-    // After reverse swap: reverseAmount of base token
-    // Profit = (reverseAmount - originalAmount) * price
-    
-    const originalAmount = Number(amountInWei) / Math.pow(10, baseDecimals);
-    const profitTokens = reverseAmount - originalAmount;
-    const profitUSD = profitTokens * basePriceUSD;
-    
-    return Math.max(0, profitUSD); // Only positive profits
-  } catch (error) {
-    console.error(`Cycle profit calculation error:`, error.message);
-    return 0;
-  }
-    }
-        
 
 /* ============================================================
    API ROUTES
@@ -791,7 +625,8 @@ app.listen(PORT, () => {
   console.log(`🚀 DEX Arbitrage Scanner running on port ${PORT}`);
   console.log(`📊 Networks: ${Object.keys(NETWORKS).join(', ')}`);
   console.log(`💰 Min profit: $${MIN_PROFIT_USD}`);
-  console.log(`⛽ Fixed gas costs: Arbitrum=$1.50, Polygon=$0.40, Optimism=$0.80`);
+  console.log(`⛽ Gas costs: Arbitrum=$1.50, Polygon=$0.40, Optimism=$0.80`);
+  console.log(`🔄 Checking forward & reverse arbitrage`);
   console.log(`=========================================`);
 });
 
