@@ -1,6 +1,3 @@
-COMPLETE BACKEND - server.js
-
-```javascript
 const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
