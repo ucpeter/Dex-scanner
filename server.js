@@ -16,7 +16,7 @@ const cache = new Map();
 const CACHE_TTL = 10000;
 
 /* ============================================================
-   NETWORK CONFIG WITH CORRECT UNISWAP QUOTER ADDRESSES
+   NETWORK CONFIG
 ============================================================ */
 const NETWORKS = {
   arbitrum: {
@@ -24,7 +24,6 @@ const NETWORKS = {
     chainId: 42161,
     rpc: process.env.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc',
     paraswapAPI: 'https://apiv5.paraswap.io',
-    // CORRECT Uniswap addresses (no extra 'E')
     uniswapQuoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e',
     uniswapQuoter: '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6',
     explorer: 'https://arbiscan.io'
@@ -68,7 +67,7 @@ const TOKEN_LISTS = {
 };
 
 /* ============================================================
-   TOKEN ADDRESSES WITH CORRECT DECIMALS
+   TOKEN ADDRESSES
 ============================================================ */
 const TOKEN_ADDRESSES = {
   arbitrum: {
@@ -122,15 +121,11 @@ const TRADE_SIZES_USD = [1000];
 const MIN_PROFIT_USD = 5;
 const MAX_PAIRS_PER_SCAN = 10;
 
-// Quoter V2 ABI (correct format)
-const QUOTER_V2_ABI = [
-  'function quoteExactInputSingle(tuple(address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitXHR) params) external view returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'
-];
-
-// Original Quoter ABI (correct format)
+// Quoter ABI
 const QUOTER_ABI = [
   'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitXHR) external view returns (uint256 amountOut)'
 ];
+
 /* ============================================================
    HELPER FUNCTIONS
 ============================================================ */
@@ -151,13 +146,24 @@ function generatePairs(tokens) {
   return pairs;
 }
 
-function getTokenIconUrl(symbol) {
-  const cleanSymbol = symbol.replace('W', '').toLowerCase();
-  return `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/32/color/${cleanSymbol}.png`;
+/* ============================================================
+   GAS ESTIMATION - FIXED ($0.40 for Polygon, not $555)
+============================================================ */
+async function estimateGasCost(networkKey) {
+  // FIXED GAS COSTS
+  const fixedGasCosts = {
+    arbitrum: 1.5,   // $1.50 on Arbitrum
+    polygon: 0.4,    // $0.40 on Polygon (NOT $555!)
+    optimism: 0.8    // $0.80 on Optimism
+  };
+  
+  const gasCost = fixedGasCosts[networkKey] || 1.0;
+  console.log(`   Gas cost: $${gasCost.toFixed(2)} (fixed for ${NETWORKS[networkKey].name})`);
+  return gasCost;
 }
 
 /* ============================================================
-   PRICE FETCHERS - CORRECTED WITH STATICCALL
+   PRICE FETCHERS
 ============================================================ */
 async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
   try {
@@ -167,40 +173,6 @@ async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
     
     console.log(`   Uniswap: ${tokenIn.symbol}->${tokenOut.symbol}`);
     
-    // First try with original Quoter using staticCall
-    console.log(`   Trying original Quoter: ${network.uniswapQuoter}`);
-    const originalQuote = await getUniswapOriginalQuote(network, tokenIn, tokenOut, amountInWei);
-    
-    if (originalQuote) {
-      return originalQuote;
-    }
-    
-    // If original fails, try Quoter V2
-    console.log(`   Trying Quoter V2: ${network.uniswapQuoterV2}`);
-    const v2Quote = await getUniswapV2Quote(network, tokenIn, tokenOut, amountInWei);
-    
-    if (v2Quote) {
-      return v2Quote;
-    }
-    
-    console.log(`   ❌ No Uniswap quotes available`);
-    return null;
-    
-  } catch (error) {
-    console.error(`   ❌ Uniswap quote error:`, error.shortMessage || error.message);
-    return null;
-  }
-}
-
-/* ============================================================
-   ORIGINAL QUOTER WITH STATICCALL
-============================================================ */
-async function getUniswapOriginalQuote(network, tokenIn, tokenOut, amountInWei) {
-  try {
-    const provider = new ethers.JsonRpcProvider(network.rpc, network.chainId, {
-      staticNetwork: true
-    });
-    
     const quoter = new ethers.Contract(network.uniswapQuoter, QUOTER_ABI, provider);
     
     const fees = [500, 3000, 10000];
@@ -208,9 +180,8 @@ async function getUniswapOriginalQuote(network, tokenIn, tokenOut, amountInWei) 
     
     for (const fee of fees) {
       try {
-        console.log(`   Original fee ${fee}...`);
+        console.log(`   Trying fee ${fee}...`);
         
-        // CORRECT: Use .staticCall() for read-only queries
         const amountOut = await quoter.quoteExactInputSingle.staticCall(
           tokenIn.address,
           tokenOut.address,
@@ -219,81 +190,35 @@ async function getUniswapOriginalQuote(network, tokenIn, tokenOut, amountInWei) 
           0
         );
         
-        console.log(`   Original fee ${fee}: ${amountOut.toString()}`);
+        console.log(`   Fee ${fee}: ${amountOut.toString()}`);
         
         if (amountOut > bestQuote) {
           bestQuote = amountOut;
         }
       } catch (error) {
-        console.log(`   Original fee ${fee} failed: ${error.shortMessage || error.message}`);
-        continue;
+        const errorMsg = error.shortMessage || error.message;
+        if (errorMsg.includes('reverted') || 
+            errorMsg.includes('Unexpected error') ||
+            errorMsg.includes('no data present')) {
+          console.log(`   Fee ${fee}: No liquidity`);
+          continue;
+        }
+        console.log(`   Fee ${fee} failed: ${errorMsg}`);
       }
     }
     
     if (bestQuote > 0n) {
-      console.log(`   ✅ Original Uniswap quote: ${bestQuote.toString()}`);
+      console.log(`   ✅ Uniswap best quote: ${bestQuote.toString()}`);
       return bestQuote;
     } else {
+      console.log(`   ❌ No Uniswap quotes available`);
       return null;
     }
   } catch (error) {
-    console.error(`   ❌ Original Uniswap error:`, error.shortMessage || error.message);
+    console.error(`   ❌ Uniswap quote error:`, error.shortMessage || error.message);
     return null;
   }
 }
-
-/* ============================================================
-   QUOTER V2 WITH STATICCALL
-============================================================ */
-async function getUniswapV2Quote(network, tokenIn, tokenOut, amountInWei) {
-  try {
-    const provider = new ethers.JsonRpcProvider(network.rpc, network.chainId, {
-      staticNetwork: true
-    });
-    
-    const quoter = new ethers.Contract(network.uniswapQuoterV2, QUOTER_V2_ABI, provider);
-    
-    const fees = [500, 3000, 10000];
-    let bestQuote = 0n;
-    
-    for (const fee of fees) {
-      try {
-        console.log(`   V2 fee ${fee}...`);
-        
-        // Use .staticCall() for read-only queries
-        const result = await quoter.quoteExactInputSingle.staticCall({
-          tokenIn: tokenIn.address,
-          tokenOut: tokenOut.address,
-          amountIn: amountInWei,
-          fee: fee,
-          sqrtPriceLimitXHR: 0
-        });
-        
-        // Extract amountOut from the result tuple
-        const amountOut = result[0]; // First element is amountOut
-        
-        console.log(`   V2 fee ${fee}: ${amountOut.toString()}`);
-        
-        if (amountOut > bestQuote) {
-          bestQuote = amountOut;
-        }
-      } catch (error) {
-        console.log(`   V2 fee ${fee} failed: ${error.shortMessage || error.message}`);
-        continue;
-      }
-    }
-    
-    if (bestQuote > 0n) {
-      console.log(`   ✅ Uniswap V2 quote: ${bestQuote.toString()}`);
-      return bestQuote;
-    } else {
-      return null;
-    }
-  } catch (error) {
-    console.error(`   ❌ Uniswap V2 error:`, error.shortMessage || error.message);
-    return null;
-  }
-    }
 
 async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
   try {
@@ -313,11 +238,7 @@ async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
 
     const response = await axios.get(url, { 
       params, 
-      timeout: 15000,
-      headers: {
-        // Add your Paraswap API key here if you have one
-        // 'X-API-Key': process.env.PARASWAP_API_KEY || ''
-      }
+      timeout: 15000
     });
     
     console.log(`   Paraswap response: ${response.status}`);
@@ -337,49 +258,6 @@ async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
 }
 
 /* ============================================================
-   DYNAMIC GAS ESTIMATION
-============================================================ */
-async function estimateGasCost(networkKey) {
-  try {
-    const network = NETWORKS[networkKey];
-    const provider = new ethers.JsonRpcProvider(network.rpc);
-    const feeData = await provider.getFeeData();
-    
-    // Estimate gas cost in USD
-    const gasPrice = feeData.gasPrice || 1000000000n; // Fallback to 1 gwei
-    const gasForArbitrage = 350000n; // Estimated gas for simple swap arbitrage
-    const gasCostWei = gasPrice * gasForArbitrage;
-    
-    // Get ETH price for conversion
-    const defaultPrices = {
-      'WETH': 3200, 'ETH': 3200,
-      'USDC': 1, 'USDT': 1, 'DAI': 1,
-      'WBTC': 65000, 'BTC': 65000,
-      'ARB': 1.5, 'LINK': 18, 'UNI': 8,
-      'AAVE': 110, 'CRV': 0.6, 'COMP': 60,
-      'SUSHI': 1.2, 'GMX': 45, 'MAGIC': 1.1,
-      'MATIC': 0.9, 'OP': 3.2, 'SNX': 3.5,
-      'PERP': 1.8, 'QUICK': 70
-    };
-    
-    const ethPrice = defaultPrices['WETH'] || 3200;
-    const gasCostETH = Number(gasCostWei) / 1e18;
-    const gasCostUSD = gasCostETH * ethPrice;
-    
-    return parseFloat(gasCostUSD.toFixed(2));
-  } catch (error) {
-    console.error(`Gas estimation failed: ${error.message}`);
-    // Fallback values
-    const fallbackGas = {
-      arbitrum: 1.5,
-      polygon: 0.4,
-      optimism: 0.8
-    };
-    return fallbackGas[networkKey] || 1.0;
-  }
-}
-
-/* ============================================================
    PRICE ORACLE
 ============================================================ */
 async function getTokenPriceInUSD(symbol) {
@@ -390,7 +268,6 @@ async function getTokenPriceInUSD(symbol) {
     return cached.data;
   }
   
-  // Use reliable default prices
   const defaultPrices = {
     'WETH': 3200, 'ETH': 3200,
     'USDC': 1, 'USDT': 1, 'DAI': 1,
@@ -408,14 +285,13 @@ async function getTokenPriceInUSD(symbol) {
 }
 
 /* ============================================================
-   CORE ARBITRAGE SCANNER - CORRECTED
+   CORE ARBITRAGE SCANNER
 ============================================================ */
 async function scanArbitrage(networkKey) {
   const network = NETWORKS[networkKey];
   const tokens = TOKEN_LISTS[networkKey];
   const opportunities = [];
   
-  // Generate trading pairs
   const allPairs = generatePairs(tokens);
   const pairs = allPairs.slice(0, MAX_PAIRS_PER_SCAN);
   
@@ -423,7 +299,6 @@ async function scanArbitrage(networkKey) {
   console.log(`🚀 Scanning ${pairs.length} pairs on ${network.name}...`);
   console.log(`=========================================\n`);
   
-  // Get dynamic gas cost
   const currentGasUSD = await estimateGasCost(networkKey);
   console.log(`⛽ Estimated gas cost: $${currentGasUSD}\n`);
   
@@ -431,7 +306,6 @@ async function scanArbitrage(networkKey) {
     const pair = pairs[i];
     
     try {
-      // Get token info
       const baseToken = TOKEN_ADDRESSES[networkKey][pair.base];
       const targetToken = TOKEN_ADDRESSES[networkKey][pair.target];
       
@@ -440,11 +314,9 @@ async function scanArbitrage(networkKey) {
         continue;
       }
       
-      // Add symbol to token objects
       const baseTokenWithSymbol = { ...baseToken, symbol: pair.base };
       const targetTokenWithSymbol = { ...targetToken, symbol: pair.target };
       
-      // Get USD price for sizing
       const basePrice = await getTokenPriceInUSD(pair.base);
       if (!basePrice) {
         console.log(`❌ Skipping ${pair.base}: No price data`);
@@ -456,7 +328,6 @@ async function scanArbitrage(networkKey) {
       console.log(`\n🔍 [${i+1}/${pairs.length}] ${pair.base} → ${pair.target} ($${sizeUSD})`);
       
       try {
-        // Calculate amount in token units
         const amountInTokens = sizeUSD / basePrice;
         const amountInWei = ethers.parseUnits(
           amountInTokens.toFixed(Math.min(6, baseToken.decimals)),
@@ -465,7 +336,6 @@ async function scanArbitrage(networkKey) {
         
         console.log(`   Amount: ${amountInTokens.toFixed(6)} ${pair.base}`);
         
-        // Get Uniswap quote
         console.log(`   ⏳ Getting Uniswap quote...`);
         const uniswapAmountOut = await getUniswapV3Quote(network, baseTokenWithSymbol, targetTokenWithSymbol, amountInWei);
         
@@ -474,10 +344,8 @@ async function scanArbitrage(networkKey) {
           continue;
         }
         
-        // Wait before Paraswap call
         await new Promise(resolve => setTimeout(resolve, 1000));
         
-        // Get Paraswap quote
         console.log(`   ⏳ Getting Paraswap quote...`);
         const paraswapAmountOut = await getParaswapQuote(network, baseTokenWithSymbol, targetTokenWithSymbol, amountInWei);
         
@@ -486,7 +354,6 @@ async function scanArbitrage(networkKey) {
           continue;
         }
         
-        // Convert to readable amounts
         const uniswapAmount = Number(uniswapAmountOut) / Math.pow(10, targetToken.decimals);
         const paraswapAmount = Number(paraswapAmountOut) / Math.pow(10, targetToken.decimals);
         
@@ -494,11 +361,9 @@ async function scanArbitrage(networkKey) {
         console.log(`     Uniswap V3:  ${uniswapAmount.toFixed(6)} ${pair.target}`);
         console.log(`     Paraswap V5: ${paraswapAmount.toFixed(6)} ${pair.target}`);
         
-        // Calculate price difference percentage
         const priceDiffPercent = Math.abs((uniswapAmount - paraswapAmount) / Math.max(uniswapAmount, paraswapAmount)) * 100;
         console.log(`   📈 Price difference: ${priceDiffPercent.toFixed(2)}%`);
         
-        // Check for arbitrage opportunities
         let profitUSD = 0;
         let direction = '';
         let buyPrice = 0;
@@ -507,7 +372,6 @@ async function scanArbitrage(networkKey) {
         let sellDex = '';
         
         if (paraswapAmountOut < uniswapAmountOut) {
-          // Buy on Paraswap, sell on Uniswap
           const profitTokens = (Number(uniswapAmountOut) - Number(paraswapAmountOut)) / Math.pow(10, targetToken.decimals);
           const tokenOutPrice = await getTokenPriceInUSD(pair.target);
           const grossProfitUSD = profitTokens * tokenOutPrice;
@@ -518,7 +382,6 @@ async function scanArbitrage(networkKey) {
           buyDex = 'Paraswap V5';
           sellDex = 'Uniswap V3';
         } else if (uniswapAmountOut < paraswapAmountOut) {
-          // Buy on Uniswap, sell on Paraswap
           const profitTokens = (Number(paraswapAmountOut) - Number(uniswapAmountOut)) / Math.pow(10, targetToken.decimals);
           const tokenOutPrice = await getTokenPriceInUSD(pair.target);
           const grossProfitUSD = profitTokens * tokenOutPrice;
@@ -530,14 +393,12 @@ async function scanArbitrage(networkKey) {
           sellDex = 'Paraswap V5';
         }
         
-        // SANITY CHECK: Reject impossible profits
-        const maxReasonableProfit = sizeUSD * 0.5; // 50% max reasonable profit
         if (priceDiffPercent > 50) {
           console.log(`   ⚠️  Suspicious price difference (${priceDiffPercent.toFixed(2)}%) - skipping`);
           continue;
         }
         
-        if (profitUSD > MIN_PROFIT_USD && profitUSD < maxReasonableProfit) {
+        if (profitUSD > MIN_PROFIT_USD) {
           console.log(`   🎯 FOUND ARBITRAGE: ${direction}`);
           console.log(`      Profit: $${profitUSD.toFixed(2)} (after gas)`);
           
@@ -549,14 +410,12 @@ async function scanArbitrage(networkKey) {
             tokenIn: { 
               symbol: pair.base,
               address: baseToken.address,
-              decimals: baseToken.decimals,
-              icon: getTokenIconUrl(pair.base)
+              decimals: baseToken.decimals
             },
             tokenOut: { 
               symbol: pair.target,
               address: targetToken.address,
-              decimals: targetToken.decimals,
-              icon: getTokenIconUrl(pair.target)
+              decimals: targetToken.decimals
             },
             tradeSizeUSD: sizeUSD,
             profitUSD: profitUSD.toFixed(2),
@@ -569,9 +428,7 @@ async function scanArbitrage(networkKey) {
               buyPrice: buyPrice.toFixed(6),
               sellPrice: sellPrice.toFixed(6),
               buyDex: buyDex,
-              sellDex: sellDex,
-              buyAmount: (buyDex === 'Uniswap V3' ? uniswapAmount : paraswapAmount).toFixed(6),
-              sellAmount: (sellDex === 'Uniswap V3' ? uniswapAmount : paraswapAmount).toFixed(6)
+              sellDex: sellDex
             },
             details: {
               priceDifference: `${priceDiffPercent.toFixed(2)}%`,
@@ -580,11 +437,7 @@ async function scanArbitrage(networkKey) {
             }
           });
         } else {
-          if (profitUSD >= maxReasonableProfit) {
-            console.log(`   ⚠️  Suspicious profit ($${profitUSD.toFixed(2)}) - likely error`);
-          } else {
-            console.log(`   📊 No arbitrage opportunity (min profit: $${MIN_PROFIT_USD})`);
-          }
+          console.log(`   📊 No arbitrage opportunity (min profit: $${MIN_PROFIT_USD})`);
         }
         
       } catch (error) {
@@ -597,7 +450,6 @@ async function scanArbitrage(networkKey) {
       continue;
     }
     
-    // Add delay between pairs
     await new Promise(resolve => setTimeout(resolve, 500));
   }
   
@@ -683,7 +535,7 @@ app.listen(PORT, () => {
   console.log(`🚀 DEX Arbitrage Scanner running on port ${PORT}`);
   console.log(`📊 Networks: ${Object.keys(NETWORKS).join(', ')}`);
   console.log(`💰 Min profit: $${MIN_PROFIT_USD}`);
-  console.log(`🔧 Using CORRECTED Uniswap Quoter addresses`);
+  console.log(`⛽ Fixed gas costs: Arbitrum=$1.50, Polygon=$0.40, Optimism=$0.80`);
   console.log(`=========================================`);
 });
 
