@@ -1,4 +1,3 @@
-// server.js – WITH CORRECT UNISWAP QUOTER ADDRESSES
 const express = require('express');
 const cors = require('cors');
 const { ethers } = require('ethers');
@@ -14,14 +13,10 @@ const PORT = process.env.PORT || 3001;
 
 // Simple in-memory cache
 const cache = new Map();
-const CACHE_TTL = 10000; // 10 seconds
+const CACHE_TTL = 10000;
 
 /* ============================================================
    NETWORK CONFIG WITH CORRECT UNISWAP QUOTER ADDRESSES
-   Sources:
-   - Arbitrum: https://docs.uniswap.org/contracts/v3/reference/deployments/arbitrum-deployments
-   - Polygon: https://docs.uniswap.org/contracts/v3/reference/deployments/polygon-deployments  
-   - Optimism: https://docs.uniswap.org/contracts/v3/reference/deployments/optimism-deployments
 ============================================================ */
 const NETWORKS = {
   arbitrum: {
@@ -29,28 +24,28 @@ const NETWORKS = {
     chainId: 42161,
     rpc: process.env.ARBITRUM_RPC || 'https://arb1.arbitrum.io/rpc',
     paraswapAPI: 'https://apiv5.paraswap.io',
-    // CORRECT Uniswap V3 Quoter address for Arbitrum
-    uniswapQuoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21eE', // QuoterV2
-    uniswapQuoter: '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6', // Original Quoter
-    gasUSD: 1.5
+    // CORRECT Uniswap addresses (no extra 'E')
+    uniswapQuoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e',
+    uniswapQuoter: '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6',
+    explorer: 'https://arbiscan.io'
   },
   polygon: {
     name: 'Polygon',
     chainId: 137,
     rpc: process.env.POLYGON_RPC || 'https://polygon-rpc.com',
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapQuoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21eE', // Same on Polygon
-    uniswapQuoter: '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6', // Original Quoter
-    gasUSD: 0.4
+    uniswapQuoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e',
+    uniswapQuoter: '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6',
+    explorer: 'https://polygonscan.com'
   },
   optimism: {
     name: 'Optimism',
     chainId: 10,
     rpc: process.env.OPTIMISM_RPC || 'https://mainnet.optimism.io',
     paraswapAPI: 'https://apiv5.paraswap.io',
-    uniswapQuoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21eE', // Same on Optimism
-    uniswapQuoter: '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6', // Original Quoter
-    gasUSD: 0.8
+    uniswapQuoterV2: '0x61fFE014bA17989E743c5F6cB21bF9697530B21e',
+    uniswapQuoter: '0xb27308f9F90D607463bb33eA1BeBb41C27CE5AB6',
+    explorer: 'https://optimistic.etherscan.io'
   }
 };
 
@@ -73,7 +68,7 @@ const TOKEN_LISTS = {
 };
 
 /* ============================================================
-   TOKEN ADDRESSES
+   TOKEN ADDRESSES WITH CORRECT DECIMALS
 ============================================================ */
 const TOKEN_ADDRESSES = {
   arbitrum: {
@@ -124,18 +119,12 @@ const TOKEN_ADDRESSES = {
 ============================================================ */
 const BASE_TOKENS = ['WETH', 'USDC', 'USDT', 'DAI', 'WBTC'];
 const TRADE_SIZES_USD = [1000];
-const SLIPPAGE_BPS = 30;
 const MIN_PROFIT_USD = 5;
 const MAX_PAIRS_PER_SCAN = 10;
 
-// CORRECT Uniswap Quoter ABI for V2 AND original Quoter
-const QUOTER_V2_ABI = [
-  'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'
-];
-
-// Original Quoter ABI (more reliable)
+// Correct Quoter ABI for ethers v6
 const QUOTER_ABI = [
-  'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitX96) external returns (uint256 amountOut)'
+  'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitXHR) external returns (uint256 amountOut)'
 ];
 
 /* ============================================================
@@ -160,21 +149,19 @@ function generatePairs(tokens) {
 
 function getTokenIconUrl(symbol) {
   const cleanSymbol = symbol.replace('W', '').toLowerCase();
-  return `https://cryptocurrencyliveprices.com/img/${cleanSymbol}-${cleanSymbol}.png`;
+  return `https://raw.githubusercontent.com/spothq/cryptocurrency-icons/master/32/color/${cleanSymbol}.png`;
 }
 
 /* ============================================================
-   PRICE FETCHERS - USING ORIGINAL UNISWAP QUOTER (MORE RELIABLE)
+   PRICE FETCHERS - CORRECTED
 ============================================================ */
 async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
   try {
-    // Use the original Quoter which is more reliable
     const provider = new ethers.JsonRpcProvider(network.rpc, network.chainId, {
       staticNetwork: true
     });
     
     console.log(`   Uniswap: ${tokenIn.symbol}->${tokenOut.symbol}`);
-    console.log(`   Using original Quoter: ${network.uniswapQuoter}`);
     
     const quoter = new ethers.Contract(network.uniswapQuoter, QUOTER_ABI, provider);
     
@@ -185,17 +172,13 @@ async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
       try {
         console.log(`   Trying fee ${fee}...`);
         
-        // Use original quoter which has simpler interface
-        const amountOut = await quoter.quoteExactInputSingle.staticCall(
+        // CORRECT ethers v6 syntax (no .staticCall)
+        const amountOut = await quoter.quoteExactInputSingle(
           tokenIn.address,
           tokenOut.address,
           fee,
           amountInWei,
-          0,
-          { 
-            gasLimit: 1000000,
-            timeout: 30000
-          }
+          0
         );
         
         console.log(`   Fee ${fee}: ${amountOut.toString()}`);
@@ -240,7 +223,11 @@ async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
 
     const response = await axios.get(url, { 
       params, 
-      timeout: 15000
+      timeout: 15000,
+      headers: {
+        // Add your Paraswap API key here if you have one
+        // 'X-API-Key': process.env.PARASWAP_API_KEY || ''
+      }
     });
     
     console.log(`   Paraswap response: ${response.status}`);
@@ -256,6 +243,49 @@ async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
   } catch (error) {
     console.error(`   ❌ Paraswap error:`, error.response?.status || error.message);
     return null;
+  }
+}
+
+/* ============================================================
+   DYNAMIC GAS ESTIMATION
+============================================================ */
+async function estimateGasCost(networkKey) {
+  try {
+    const network = NETWORKS[networkKey];
+    const provider = new ethers.JsonRpcProvider(network.rpc);
+    const feeData = await provider.getFeeData();
+    
+    // Estimate gas cost in USD
+    const gasPrice = feeData.gasPrice || 1000000000n; // Fallback to 1 gwei
+    const gasForArbitrage = 350000n; // Estimated gas for simple swap arbitrage
+    const gasCostWei = gasPrice * gasForArbitrage;
+    
+    // Get ETH price for conversion
+    const defaultPrices = {
+      'WETH': 3200, 'ETH': 3200,
+      'USDC': 1, 'USDT': 1, 'DAI': 1,
+      'WBTC': 65000, 'BTC': 65000,
+      'ARB': 1.5, 'LINK': 18, 'UNI': 8,
+      'AAVE': 110, 'CRV': 0.6, 'COMP': 60,
+      'SUSHI': 1.2, 'GMX': 45, 'MAGIC': 1.1,
+      'MATIC': 0.9, 'OP': 3.2, 'SNX': 3.5,
+      'PERP': 1.8, 'QUICK': 70
+    };
+    
+    const ethPrice = defaultPrices['WETH'] || 3200;
+    const gasCostETH = Number(gasCostWei) / 1e18;
+    const gasCostUSD = gasCostETH * ethPrice;
+    
+    return parseFloat(gasCostUSD.toFixed(2));
+  } catch (error) {
+    console.error(`Gas estimation failed: ${error.message}`);
+    // Fallback values
+    const fallbackGas = {
+      arbitrum: 1.5,
+      polygon: 0.4,
+      optimism: 0.8
+    };
+    return fallbackGas[networkKey] || 1.0;
   }
 }
 
@@ -288,7 +318,7 @@ async function getTokenPriceInUSD(symbol) {
 }
 
 /* ============================================================
-   CORE ARBITRAGE SCANNER
+   CORE ARBITRAGE SCANNER - CORRECTED
 ============================================================ */
 async function scanArbitrage(networkKey) {
   const network = NETWORKS[networkKey];
@@ -301,8 +331,11 @@ async function scanArbitrage(networkKey) {
   
   console.log(`\n=========================================`);
   console.log(`🚀 Scanning ${pairs.length} pairs on ${network.name}...`);
-  console.log(`📡 Using original Uniswap Quoter: ${network.uniswapQuoter}`);
   console.log(`=========================================\n`);
+  
+  // Get dynamic gas cost
+  const currentGasUSD = await estimateGasCost(networkKey);
+  console.log(`⛽ Estimated gas cost: $${currentGasUSD}\n`);
   
   for (let i = 0; i < pairs.length; i++) {
     const pair = pairs[i];
@@ -336,13 +369,13 @@ async function scanArbitrage(networkKey) {
         // Calculate amount in token units
         const amountInTokens = sizeUSD / basePrice;
         const amountInWei = ethers.parseUnits(
-          amountInTokens.toFixed(baseToken.decimals),
+          amountInTokens.toFixed(Math.min(6, baseToken.decimals)),
           baseToken.decimals
         );
         
         console.log(`   Amount: ${amountInTokens.toFixed(6)} ${pair.base}`);
         
-        // Try to get Uniswap quote with original quoter
+        // Get Uniswap quote
         console.log(`   ⏳ Getting Uniswap quote...`);
         const uniswapAmountOut = await getUniswapV3Quote(network, baseTokenWithSymbol, targetTokenWithSymbol, amountInWei);
         
@@ -378,48 +411,78 @@ async function scanArbitrage(networkKey) {
         // Check for arbitrage opportunities
         let profitUSD = 0;
         let direction = '';
+        let buyPrice = 0;
+        let sellPrice = 0;
+        let buyDex = '';
+        let sellDex = '';
         
         if (paraswapAmountOut < uniswapAmountOut) {
           // Buy on Paraswap, sell on Uniswap
           const profitTokens = (Number(uniswapAmountOut) - Number(paraswapAmountOut)) / Math.pow(10, targetToken.decimals);
           const tokenOutPrice = await getTokenPriceInUSD(pair.target);
           const grossProfitUSD = profitTokens * tokenOutPrice;
-          profitUSD = grossProfitUSD - network.gasUSD;
+          profitUSD = grossProfitUSD - currentGasUSD;
           direction = 'Paraswap → Uniswap';
+          buyPrice = paraswapAmount / (sizeUSD / basePrice);
+          sellPrice = uniswapAmount / (sizeUSD / basePrice);
+          buyDex = 'Paraswap V5';
+          sellDex = 'Uniswap V3';
         } else if (uniswapAmountOut < paraswapAmountOut) {
           // Buy on Uniswap, sell on Paraswap
           const profitTokens = (Number(paraswapAmountOut) - Number(uniswapAmountOut)) / Math.pow(10, targetToken.decimals);
           const tokenOutPrice = await getTokenPriceInUSD(pair.target);
           const grossProfitUSD = profitTokens * tokenOutPrice;
-          profitUSD = grossProfitUSD - network.gasUSD;
+          profitUSD = grossProfitUSD - currentGasUSD;
           direction = 'Uniswap → Paraswap';
+          buyPrice = uniswapAmount / (sizeUSD / basePrice);
+          sellPrice = paraswapAmount / (sizeUSD / basePrice);
+          buyDex = 'Uniswap V3';
+          sellDex = 'Paraswap V5';
         }
         
-        if (profitUSD > MIN_PROFIT_USD) {
+        // SANITY CHECK: Reject impossible profits
+        const maxReasonableProfit = sizeUSD * 0.5; // 50% max reasonable profit
+        if (priceDiffPercent > 50) {
+          console.log(`   ⚠️  Suspicious price difference (${priceDiffPercent.toFixed(2)}%) - skipping`);
+          continue;
+        }
+        
+        if (profitUSD > MIN_PROFIT_USD && profitUSD < maxReasonableProfit) {
           console.log(`   🎯 FOUND ARBITRAGE: ${direction}`);
           console.log(`      Profit: $${profitUSD.toFixed(2)} (after gas)`);
           
           opportunities.push({
+            id: Date.now() + Math.random().toString(36).substr(2, 9),
             network: networkKey,
             pair: `${pair.base}/${pair.target}`,
             direction: direction,
             tokenIn: { 
-              symbol: pair.base, 
+              symbol: pair.base,
               address: baseToken.address,
+              decimals: baseToken.decimals,
               icon: getTokenIconUrl(pair.base)
             },
             tokenOut: { 
-              symbol: pair.target, 
+              symbol: pair.target,
               address: targetToken.address,
+              decimals: targetToken.decimals,
               icon: getTokenIconUrl(pair.target)
             },
             tradeSizeUSD: sizeUSD,
             profitUSD: profitUSD.toFixed(2),
             netProfitUSD: profitUSD.toFixed(2),
-            gasCostUSD: network.gasUSD,
-            dexBuy: direction.includes('Paraswap') ? 'Paraswap V5' : 'Uniswap V3',
-            dexSell: direction.includes('Uniswap') ? 'Uniswap V3' : 'Paraswap V5',
+            gasCostUSD: currentGasUSD.toFixed(2),
+            dexBuy: buyDex,
+            dexSell: sellDex,
             timestamp: new Date().toISOString(),
+            priceInfo: {
+              buyPrice: buyPrice.toFixed(6),
+              sellPrice: sellPrice.toFixed(6),
+              buyDex: buyDex,
+              sellDex: sellDex,
+              buyAmount: (buyDex === 'Uniswap V3' ? uniswapAmount : paraswapAmount).toFixed(6),
+              sellAmount: (sellDex === 'Uniswap V3' ? uniswapAmount : paraswapAmount).toFixed(6)
+            },
             details: {
               priceDifference: `${priceDiffPercent.toFixed(2)}%`,
               uniswapPrice: uniswapAmount.toFixed(6),
@@ -427,7 +490,11 @@ async function scanArbitrage(networkKey) {
             }
           });
         } else {
-          console.log(`   📊 No arbitrage opportunity (min profit: $${MIN_PROFIT_USD})`);
+          if (profitUSD >= maxReasonableProfit) {
+            console.log(`   ⚠️  Suspicious profit ($${profitUSD.toFixed(2)}) - likely error`);
+          } else {
+            console.log(`   📊 No arbitrage opportunity (min profit: $${MIN_PROFIT_USD})`);
+          }
         }
         
       } catch (error) {
@@ -475,8 +542,10 @@ app.get('/', (req, res) => {
         <head><title>DEX Scanner</title><style>body{background:#0f172a;color:white;padding:20px;}</style></head>
         <body>
           <h1>🚀 DEX Arbitrage Scanner</h1>
-          <p>Real quotes from Uniswap V3 and Paraswap V5</p>
-          <a href="/api/scan/arbitrum">Scan Arbitrum</a>
+          <p>Scanning Uniswap V3 ↔ Paraswap V5</p>
+          <a href="/api/scan/arbitrum">Scan Arbitrum</a> |
+          <a href="/api/scan/polygon">Scan Polygon</a> |
+          <a href="/api/scan/optimism">Scan Optimism</a>
         </body>
       </html>
     `);
@@ -494,10 +563,11 @@ app.get('/api/scan/:network', async (req, res) => {
     const opportunities = await scanArbitrage(network);
     res.json({ 
       success: true, 
-      network, 
+      network: NETWORKS[network].name,
       count: opportunities.length,
       opportunities,
-      note: opportunities.length > 0 ? 'Real arbitrage opportunities' : 'Scan complete - no profitable opportunities'
+      gasCost: await estimateGasCost(network),
+      timestamp: new Date().toISOString()
     });
   } catch (error) {
     console.error(`Scan error for ${network}:`, error);
@@ -514,10 +584,7 @@ app.get('/health', (_, res) => {
     status: 'ok', 
     timestamp: new Date().toISOString(),
     networks: Object.keys(NETWORKS),
-    uniswapQuoters: Object.entries(NETWORKS).reduce((acc, [key, net]) => {
-      acc[key] = net.uniswapQuoter;
-      return acc;
-    }, {})
+    version: '1.0.0'
   });
 });
 
@@ -526,7 +593,7 @@ app.listen(PORT, () => {
   console.log(`🚀 DEX Arbitrage Scanner running on port ${PORT}`);
   console.log(`📊 Networks: ${Object.keys(NETWORKS).join(', ')}`);
   console.log(`💰 Min profit: $${MIN_PROFIT_USD}`);
-  console.log(`🔧 Using ORIGINAL Uniswap Quoter addresses`);
+  console.log(`🔧 Using CORRECTED Uniswap Quoter addresses`);
   console.log(`=========================================`);
 });
 
