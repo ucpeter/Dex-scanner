@@ -51,6 +51,20 @@
     .profit-badge.high {
       background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
     }
+    .scenario-badge {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      margin-left: 4px;
+    }
+    .scenario-forward {
+      background: rgba(59, 130, 246, 0.2);
+      color: #60a5fa;
+    }
+    .scenario-reverse {
+      background: rgba(139, 92, 246, 0.2);
+      color: #a78bfa;
+    }
   </style>
 </head>
 <body class="bg-gray-900">
@@ -65,7 +79,7 @@
           </div>
           <div>
             <h1 class="text-3xl md:text-4xl font-bold text-white">Real-Time DEX Arbitrage Scanner</h1>
-            <p class="text-gray-300 mt-1">Uniswap V3 ↔ Paraswap V5 Arbitrage Opportunities</p>
+            <p class="text-gray-300 mt-1">Uniswap V3 ↔ Paraswap V5 (Forward & Reverse)</p>
           </div>
         </div>
         <div class="inline-flex items-center gap-2 bg-slate-800/50 px-4 py-2 rounded-full">
@@ -136,7 +150,7 @@
           </div>
         </div>
         <div class="mt-4 text-sm text-gray-400">
-          <p><i class="fas fa-info-circle mr-1"></i>Scanning top token pairs on the selected network. Each scan takes 30-60 seconds.</p>
+          <p><i class="fas fa-info-circle mr-1"></i>Scanning forward & reverse arbitrage on all token pairs</p>
         </div>
       </div>
 
@@ -173,8 +187,8 @@
               <tr>
                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Token Pair</th>
                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Arbitrage Path</th>
-                <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Buy Price</th>
-                <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sell Price</th>
+                <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Buy Amount</th>
+                <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Sell Amount</th>
                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Profit</th>
                 <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Details</th>
               </tr>
@@ -197,12 +211,12 @@
         
         <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
           <div class="bg-slate-800/50 p-3 rounded-lg">
-            <p class="text-gray-400 mb-1"><i class="fas fa-lightbulb mr-2"></i>How it works</p>
-            <p class="text-gray-300">Scans price differences between Uniswap V3 and Paraswap V5</p>
+            <p class="text-gray-400 mb-1"><i class="fas fa-exchange-alt mr-2"></i>Forward Arbitrage</p>
+            <p class="text-gray-300">TokenA → TokenB on Uniswap vs Paraswap</p>
           </div>
           <div class="bg-slate-800/50 p-3 rounded-lg">
-            <p class="text-gray-400 mb-1"><i class="fas fa-gas-pump mr-2"></i>Gas Cost</p>
-            <p class="text-gray-300">Net profit includes estimated gas costs for execution</p>
+            <p class="text-gray-400 mb-1"><i class="fas fa-retweet mr-2"></i>Reverse Arbitrage</p>
+            <p class="text-gray-300">TokenB → TokenA on Uniswap vs Paraswap</p>
           </div>
           <div class="bg-slate-800/50 p-3 rounded-lg">
             <p class="text-gray-400 mb-1"><i class="fas fa-shield-alt mr-2"></i>Safety</p>
@@ -213,7 +227,7 @@
 
       <!-- Footer -->
       <div class="mt-8 pt-6 border-t border-slate-800 text-center text-gray-500 text-sm">
-        <p>Real-Time DEX Arbitrage Scanner • Scanning Uniswap V3 vs Paraswap V5</p>
+        <p>Real-Time DEX Arbitrage Scanner • Scanning Forward & Reverse Arbitrage</p>
         <p class="mt-1" id="backendUrlDisplay">Backend URL: <span id="currentBackendUrl" class="text-blue-400">Detecting...</span></p>
       </div>
 
@@ -373,11 +387,10 @@
       setStatus(`Switched to ${NETWORKS[network].name} network`, 'blue');
     }
 
-    // Function to get reliable token icon - FIXED
+    // Function to get reliable token icon
     function getTokenIconUrl(symbol) {
       const cleanSymbol = symbol.replace('W', '').toUpperCase();
       
-      // Use reliable CDN with proper mapping
       const iconMap = {
         'ETH': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/eth.svg',
         'USDC': 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/usdc.svg',
@@ -404,7 +417,7 @@
       return iconMap[cleanSymbol] || 'https://cdn.jsdelivr.net/gh/atomiclabs/cryptocurrency-icons@d5c68edec1f5eaec59ac77ff2b48144679cebca1/svg/color/generic.svg';
     }
 
-    // Function to create token pair display with working icons - FIXED
+    // Function to create token pair display with working icons
     function createTokenPairDisplay(tokenIn, tokenOut, pairText) {
       let tokenInSymbol = tokenIn?.symbol || (pairText ? pairText.split('/')[0] : 'Token');
       let tokenOutSymbol = tokenOut?.symbol || (pairText ? pairText.split('/')[1] : 'Token');
@@ -451,6 +464,16 @@
           $${profitNum.toFixed(2)}
         </div>
       `;
+    }
+
+    // Create scenario badge
+    function createScenarioBadge(scenario) {
+      if (scenario === 'reverse') {
+        return `<span class="scenario-badge scenario-reverse">Reverse</span>`;
+      } else if (scenario === 'forward') {
+        return `<span class="scenario-badge scenario-forward">Forward</span>`;
+      }
+      return '';
     }
 
     // Perform a single scan
@@ -640,10 +663,11 @@
       }
       
       container.innerHTML = opportunities.map(opp => {
-        const buyPrice = opp.priceInfo?.buyPrice || 'N/A';
-        const sellPrice = opp.priceInfo?.sellPrice || 'N/A';
-        const buyDex = opp.priceInfo?.buyDex || opp.dexBuy || 'N/A';
-        const sellDex = opp.priceInfo?.sellDex || opp.dexSell || 'N/A';
+        const buyAmount = opp.details?.buyAmount || 'N/A';
+        const sellAmount = opp.details?.sellAmount || 'N/A';
+        const buyDex = opp.details?.buyDex || opp.dexBuy || 'N/A';
+        const sellDex = opp.details?.sellDex || opp.dexSell || 'N/A';
+        const scenario = opp.scenario || opp.details?.scenario || 'forward';
         
         return `
         <tr class="hover:bg-slate-700/30 transition-colors">
@@ -652,7 +676,10 @@
           </td>
           <td class="px-6 py-4">
             <div class="flex flex-col">
-              <div class="text-sm text-gray-300 font-medium mb-1">${opp.direction || `${buyDex} → ${sellDex}`}</div>
+              <div class="text-sm text-gray-300 font-medium mb-1 flex items-center">
+                ${opp.direction || `${buyDex} → ${sellDex}`}
+                ${createScenarioBadge(scenario)}
+              </div>
               <div class="text-xs text-gray-500">
                 <i class="fas fa-arrow-right mr-1"></i>${buyDex} → ${sellDex}
               </div>
@@ -660,7 +687,7 @@
           </td>
           <td class="px-6 py-4">
             <div class="flex flex-col">
-              <div class="text-white font-bold">${buyPrice}</div>
+              <div class="text-white font-bold">${buyAmount}</div>
               <div class="text-xs text-gray-400 mt-1">
                 <i class="fas fa-store mr-1"></i>${buyDex}
               </div>
@@ -668,7 +695,7 @@
           </td>
           <td class="px-6 py-4">
             <div class="flex flex-col">
-              <div class="text-white font-bold">${sellPrice}</div>
+              <div class="text-white font-bold">${sellAmount}</div>
               <div class="text-xs text-gray-400 mt-1">
                 <i class="fas fa-store mr-1"></i>${sellDex}
               </div>
@@ -703,69 +730,72 @@
       const opportunity = opportunities.find(opp => opp.id === oppId);
       if (!opportunity) return;
       
+      const scenarioText = opportunity.scenario === 'reverse' ? 'REVERSE ARBITRAGE' : 
+                          opportunity.scenario === 'forward' ? 'FORWARD ARBITRAGE' : 'ARBITRAGE';
+      
       const details = `
-Arbitrage Opportunity Details:
-─────────────────────────────
+${scenarioText} OPPORTUNITY
+══════════════════════════════════════════════════════════════
 Network: ${NETWORKS[opportunity.network]?.name || opportunity.network}
-Token Pair: ${opportunity.tokenIn?.symbol}/${opportunity.tokenOut?.symbol}
-Direction: ${opportunity.direction}
-─────────────────────────────
-Trade Size: $${opportunity.tradeSizeUSD || 1000}
-Buy Price: ${opportunity.priceInfo?.buyPrice || 'N/A'} (${opportunity.priceInfo?.buyDex || 'N/A'})
-Sell Price: ${opportunity.priceInfo?.sellPrice || 'N/A'} (${opportunity.priceInfo?.sellDex || 'N/A'})
-─────────────────────────────
-Gross Profit: $${opportunity.profitUSD || opportunity.netProfitUSD}
-Gas Cost: $${opportunity.gasCostUSD || '0.00'}
-Net Profit: $${opportunity.netProfitUSD || opportunity.profitUSD}
-─────────────────────────────
-Price Difference: ${opportunity.details?.priceDifference || 'N/A'}
-Uniswap Price: ${opportunity.details?.uniswapPrice || 'N/A'} ${opportunity.tokenOut?.symbol}
-Paraswap Price: ${opportunity.details?.paraswapPrice || 'N/A'} ${opportunity.tokenOut?.symbol}
-─────────────────────────────
+Pair: ${opportunity.tokenIn?.symbol} → ${opportunity.tokenOut?.symbol}
+Direction: ${opportunity.direction || 'Uniswap → Paraswap'}
+──────────────────────────────────────────────────────────────
+TRADE DETAILS
+• Trade Size: $${opportunity.tradeSizeUSD || 1000}
+• Buy on: ${opportunity.details?.buyDex || opportunity.dexBuy || 'N/A'}
+• Sell on: ${opportunity.details?.sellDex || opportunity.dexSell || 'N/A'}
+• Buy Amount: ${opportunity.details?.buyAmount || 'N/A'} ${opportunity.tokenOut?.symbol}
+• Sell Amount: ${opportunity.details?.sellAmount || 'N/A'} ${opportunity.tokenOut?.symbol}
+• Price Difference: ${opportunity.details?.priceDifference || 'N/A'}
+──────────────────────────────────────────────────────────────
+PROFIT CALCULATION
+• Gross Profit: $${opportunity.profitUSD || opportunity.netProfitUSD || '0.00'}
+• Gas Cost: $${opportunity.gasCostUSD || '0.00'}
+• Net Profit: $${opportunity.netProfitUSD || opportunity.profitUSD || '0.00'}
+──────────────────────────────────────────────────────────────
 Timestamp: ${new Date(opportunity.timestamp).toLocaleString()}
-      `;
+ID: ${opportunity.id}`;
       
       alert(details);
     };
 
-    // Copy trade info - FIXED TO COPY FULL DETAILS
-window.copyTradeInfo = function(oppId) {
-  const opportunity = opportunities.find(opp => opp.id === oppId);
-  if (!opportunity) return;
-  
-  const details = `Arbitrage Opportunity Details:
-─────────────────────────────
+    // Copy trade info
+    window.copyTradeInfo = function(oppId) {
+      const opportunity = opportunities.find(opp => opp.id === oppId);
+      if (!opportunity) return;
+      
+      const details = `
+ARBITRAGE OPPORTUNITY
+══════════════════════════════════════════════════════════════
 Network: ${NETWORKS[opportunity.network]?.name || opportunity.network}
-Token Pair: ${opportunity.tokenIn?.symbol}/${opportunity.tokenOut?.symbol}
+Pair: ${opportunity.tokenIn?.symbol} → ${opportunity.tokenOut?.symbol}
 Direction: ${opportunity.direction || 'Uniswap → Paraswap'}
-─────────────────────────────
-Trade Size: $${opportunity.tradeSizeUSD || 1000}
-Buy Price: ${opportunity.priceInfo?.buyPrice || 'N/A'} (${opportunity.priceInfo?.buyDex || 'Uniswap V3'})
-Sell Price: ${opportunity.priceInfo?.sellPrice || 'N/A'} (${opportunity.priceInfo?.sellDex || 'Paraswap V5'})
-Buy Amount: ${opportunity.priceInfo?.buyAmount || opportunity.details?.uniswapPrice || 'N/A'} ${opportunity.tokenOut?.symbol}
-Sell Amount: ${opportunity.priceInfo?.sellAmount || opportunity.details?.paraswapPrice || 'N/A'} ${opportunity.tokenOut?.symbol}
-─────────────────────────────
-Gross Profit: $${opportunity.profitUSD || opportunity.netProfitUSD || '0.00'}
-Gas Cost: $${opportunity.gasCostUSD || '0.00'}
-Net Profit: $${opportunity.netProfitUSD || opportunity.profitUSD || '0.00'}
-─────────────────────────────
-Price Difference: ${opportunity.details?.priceDifference || 'N/A'}
-Uniswap Price: ${opportunity.details?.uniswapPrice || 'N/A'} ${opportunity.tokenOut?.symbol}
-Paraswap Price: ${opportunity.details?.paraswapPrice || 'N/A'} ${opportunity.tokenOut?.symbol}
-─────────────────────────────
+──────────────────────────────────────────────────────────────
+TRADE DETAILS
+• Trade Size: $${opportunity.tradeSizeUSD || 1000}
+• Buy on: ${opportunity.details?.buyDex || opportunity.dexBuy || 'N/A'}
+• Sell on: ${opportunity.details?.sellDex || opportunity.dexSell || 'N/A'}
+• Buy Amount: ${opportunity.details?.buyAmount || 'N/A'} ${opportunity.tokenOut?.symbol}
+• Sell Amount: ${opportunity.details?.sellAmount || 'N/A'} ${opportunity.tokenOut?.symbol}
+• Price Difference: ${opportunity.details?.priceDifference || 'N/A'}
+──────────────────────────────────────────────────────────────
+PROFIT CALCULATION
+• Gross Profit: $${opportunity.profitUSD || opportunity.netProfitUSD || '0.00'}
+• Gas Cost: $${opportunity.gasCostUSD || '0.00'}
+• Net Profit: $${opportunity.netProfitUSD || opportunity.profitUSD || '0.00'}
+──────────────────────────────────────────────────────────────
 Timestamp: ${new Date(opportunity.timestamp).toLocaleString()}
-─────────────────────────────
-Scan ID: ${opportunity.id}`;
-  
-  navigator.clipboard.writeText(details)
-    .then(() => {
-      setStatus('Full opportunity details copied to clipboard!', 'green');
-    })
-    .catch((err) => {
-      console.error('Failed to copy:', err);
-      setStatus('Failed to copy details', 'red');
-    });
-};
+ID: ${opportunity.id}`;
+      
+      navigator.clipboard.writeText(details.trim())
+        .then(() => {
+          setStatus('Full opportunity details copied to clipboard!', 'green');
+        })
+        .catch((err) => {
+          console.error('Failed to copy:', err);
+          setStatus('Failed to copy details', 'red');
+        });
+    };
 
     // Clear all opportunities
     function clearOpportunities() {
