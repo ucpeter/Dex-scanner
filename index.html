@@ -728,21 +728,44 @@ Timestamp: ${new Date(opportunity.timestamp).toLocaleString()}
       alert(details);
     };
 
-    // Copy trade info
-    window.copyTradeInfo = function(oppId) {
-      const opportunity = opportunities.find(opp => opp.id === oppId);
-      if (!opportunity) return;
-      
-      const text = `Arbitrage: ${opportunity.tokenIn?.symbol}/${opportunity.tokenOut?.symbol} - Profit: $${opportunity.profitUSD} - ${opportunity.direction} - ${NETWORKS[opportunity.network]?.name}`;
-      
-      navigator.clipboard.writeText(text)
-        .then(() => {
-          setStatus('Trade info copied to clipboard!', 'green');
-        })
-        .catch(() => {
-          setStatus('Failed to copy info', 'red');
-        });
-    };
+    // Copy trade info - FIXED TO COPY FULL DETAILS
+window.copyTradeInfo = function(oppId) {
+  const opportunity = opportunities.find(opp => opp.id === oppId);
+  if (!opportunity) return;
+  
+  const details = `Arbitrage Opportunity Details:
+─────────────────────────────
+Network: ${NETWORKS[opportunity.network]?.name || opportunity.network}
+Token Pair: ${opportunity.tokenIn?.symbol}/${opportunity.tokenOut?.symbol}
+Direction: ${opportunity.direction || 'Uniswap → Paraswap'}
+─────────────────────────────
+Trade Size: $${opportunity.tradeSizeUSD || 1000}
+Buy Price: ${opportunity.priceInfo?.buyPrice || 'N/A'} (${opportunity.priceInfo?.buyDex || 'Uniswap V3'})
+Sell Price: ${opportunity.priceInfo?.sellPrice || 'N/A'} (${opportunity.priceInfo?.sellDex || 'Paraswap V5'})
+Buy Amount: ${opportunity.priceInfo?.buyAmount || opportunity.details?.uniswapPrice || 'N/A'} ${opportunity.tokenOut?.symbol}
+Sell Amount: ${opportunity.priceInfo?.sellAmount || opportunity.details?.paraswapPrice || 'N/A'} ${opportunity.tokenOut?.symbol}
+─────────────────────────────
+Gross Profit: $${opportunity.profitUSD || opportunity.netProfitUSD || '0.00'}
+Gas Cost: $${opportunity.gasCostUSD || '0.00'}
+Net Profit: $${opportunity.netProfitUSD || opportunity.profitUSD || '0.00'}
+─────────────────────────────
+Price Difference: ${opportunity.details?.priceDifference || 'N/A'}
+Uniswap Price: ${opportunity.details?.uniswapPrice || 'N/A'} ${opportunity.tokenOut?.symbol}
+Paraswap Price: ${opportunity.details?.paraswapPrice || 'N/A'} ${opportunity.tokenOut?.symbol}
+─────────────────────────────
+Timestamp: ${new Date(opportunity.timestamp).toLocaleString()}
+─────────────────────────────
+Scan ID: ${opportunity.id}`;
+  
+  navigator.clipboard.writeText(details)
+    .then(() => {
+      setStatus('Full opportunity details copied to clipboard!', 'green');
+    })
+    .catch((err) => {
+      console.error('Failed to copy:', err);
+      setStatus('Failed to copy details', 'red');
+    });
+};
 
     // Clear all opportunities
     function clearOpportunities() {
