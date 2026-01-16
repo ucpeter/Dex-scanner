@@ -122,11 +122,15 @@ const TRADE_SIZES_USD = [1000];
 const MIN_PROFIT_USD = 5;
 const MAX_PAIRS_PER_SCAN = 10;
 
-// Correct Quoter ABI for ethers v6
-const QUOTER_ABI = [
-  'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitXHR) external returns (uint256 amountOut)'
+// Quoter V2 ABI (correct format)
+const QUOTER_V2_ABI = [
+  'function quoteExactInputSingle(tuple(address tokenIn, address tokenOut, uint256 amountIn, uint24 fee, uint160 sqrtPriceLimitXHR) params) external view returns (uint256 amountOut, uint160 sqrtPriceX96After, uint32 initializedTicksCrossed, uint256 gasEstimate)'
 ];
 
+// Original Quoter ABI (correct format)
+const QUOTER_ABI = [
+  'function quoteExactInputSingle(address tokenIn, address tokenOut, uint24 fee, uint256 amountIn, uint160 sqrtPriceLimitXHR) external view returns (uint256 amountOut)'
+];
 /* ============================================================
    HELPER FUNCTIONS
 ============================================================ */
@@ -153,7 +157,7 @@ function getTokenIconUrl(symbol) {
 }
 
 /* ============================================================
-   PRICE FETCHERS - CORRECTED
+   PRICE FETCHERS - CORRECTED WITH STATICCALL
 ============================================================ */
 async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
   try {
@@ -163,6 +167,40 @@ async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
     
     console.log(`   Uniswap: ${tokenIn.symbol}->${tokenOut.symbol}`);
     
+    // First try with original Quoter using staticCall
+    console.log(`   Trying original Quoter: ${network.uniswapQuoter}`);
+    const originalQuote = await getUniswapOriginalQuote(network, tokenIn, tokenOut, amountInWei);
+    
+    if (originalQuote) {
+      return originalQuote;
+    }
+    
+    // If original fails, try Quoter V2
+    console.log(`   Trying Quoter V2: ${network.uniswapQuoterV2}`);
+    const v2Quote = await getUniswapV2Quote(network, tokenIn, tokenOut, amountInWei);
+    
+    if (v2Quote) {
+      return v2Quote;
+    }
+    
+    console.log(`   ❌ No Uniswap quotes available`);
+    return null;
+    
+  } catch (error) {
+    console.error(`   ❌ Uniswap quote error:`, error.shortMessage || error.message);
+    return null;
+  }
+}
+
+/* ============================================================
+   ORIGINAL QUOTER WITH STATICCALL
+============================================================ */
+async function getUniswapOriginalQuote(network, tokenIn, tokenOut, amountInWei) {
+  try {
+    const provider = new ethers.JsonRpcProvider(network.rpc, network.chainId, {
+      staticNetwork: true
+    });
+    
     const quoter = new ethers.Contract(network.uniswapQuoter, QUOTER_ABI, provider);
     
     const fees = [500, 3000, 10000];
@@ -170,10 +208,10 @@ async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
     
     for (const fee of fees) {
       try {
-        console.log(`   Trying fee ${fee}...`);
+        console.log(`   Original fee ${fee}...`);
         
-        // CORRECT ethers v6 syntax (no .staticCall)
-        const amountOut = await quoter.quoteExactInputSingle(
+        // CORRECT: Use .staticCall() for read-only queries
+        const amountOut = await quoter.quoteExactInputSingle.staticCall(
           tokenIn.address,
           tokenOut.address,
           fee,
@@ -181,29 +219,81 @@ async function getUniswapV3Quote(network, tokenIn, tokenOut, amountInWei) {
           0
         );
         
-        console.log(`   Fee ${fee}: ${amountOut.toString()}`);
+        console.log(`   Original fee ${fee}: ${amountOut.toString()}`);
         
         if (amountOut > bestQuote) {
           bestQuote = amountOut;
         }
       } catch (error) {
-        console.log(`   Fee ${fee} failed: ${error.shortMessage || error.message}`);
+        console.log(`   Original fee ${fee} failed: ${error.shortMessage || error.message}`);
         continue;
       }
     }
     
     if (bestQuote > 0n) {
-      console.log(`   ✅ Uniswap best quote: ${bestQuote.toString()}`);
+      console.log(`   ✅ Original Uniswap quote: ${bestQuote.toString()}`);
       return bestQuote;
     } else {
-      console.log(`   ❌ No Uniswap quotes available`);
       return null;
     }
   } catch (error) {
-    console.error(`   ❌ Uniswap quote error:`, error.shortMessage || error.message);
+    console.error(`   ❌ Original Uniswap error:`, error.shortMessage || error.message);
     return null;
   }
 }
+
+/* ============================================================
+   QUOTER V2 WITH STATICCALL
+============================================================ */
+async function getUniswapV2Quote(network, tokenIn, tokenOut, amountInWei) {
+  try {
+    const provider = new ethers.JsonRpcProvider(network.rpc, network.chainId, {
+      staticNetwork: true
+    });
+    
+    const quoter = new ethers.Contract(network.uniswapQuoterV2, QUOTER_V2_ABI, provider);
+    
+    const fees = [500, 3000, 10000];
+    let bestQuote = 0n;
+    
+    for (const fee of fees) {
+      try {
+        console.log(`   V2 fee ${fee}...`);
+        
+        // Use .staticCall() for read-only queries
+        const result = await quoter.quoteExactInputSingle.staticCall({
+          tokenIn: tokenIn.address,
+          tokenOut: tokenOut.address,
+          amountIn: amountInWei,
+          fee: fee,
+          sqrtPriceLimitXHR: 0
+        });
+        
+        // Extract amountOut from the result tuple
+        const amountOut = result[0]; // First element is amountOut
+        
+        console.log(`   V2 fee ${fee}: ${amountOut.toString()}`);
+        
+        if (amountOut > bestQuote) {
+          bestQuote = amountOut;
+        }
+      } catch (error) {
+        console.log(`   V2 fee ${fee} failed: ${error.shortMessage || error.message}`);
+        continue;
+      }
+    }
+    
+    if (bestQuote > 0n) {
+      console.log(`   ✅ Uniswap V2 quote: ${bestQuote.toString()}`);
+      return bestQuote;
+    } else {
+      return null;
+    }
+  } catch (error) {
+    console.error(`   ❌ Uniswap V2 error:`, error.shortMessage || error.message);
+    return null;
+  }
+    }
 
 async function getParaswapQuote(network, tokenIn, tokenOut, amountInWei) {
   try {
