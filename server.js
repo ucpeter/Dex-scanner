@@ -378,25 +378,19 @@ async function scanArbitrage(networkKey) {
         console.log(`    Paraswap V5 (${pair.token0} → ${pair.token1}): ${paraswapOutput.toFixed(6)}`);
         
         // Check REVERSE direction (token1 → token0) to complete the cycle
+        // FIXED REVERSE CHECK BUG: Create clean reverse pair object
+        const reversePair = {
+          token0: pair.token1,
+          token1: pair.token0,
+          token0Address: pair.token1Address,
+          token1Address: pair.token0Address,
+          decimals0: pair.decimals1,  // CRITICAL: decimals must match token0
+          decimals1: pair.decimals0   // CRITICAL: decimals must match token1
+        };
+
         const [uniswapReverseQuotes, paraswapReverseQuote] = await Promise.all([
-          getUniswapV3Prices(network, {
-            ...pair,
-            token0: pair.token1,
-            token1: pair.token0,
-            token0Address: pair.token1Address,
-            token1Address: pair.token0Address,
-            decimals0: pair.decimals1,
-            decimals1: pair.decimals0
-          }, tradeSize),
-          getParaswapPrice(network, {
-            ...pair,
-            token0: pair.token1,
-            token1: pair.token0,
-            token0Address: pair.token1Address,
-            token1Address: pair.token0Address,
-            decimals0: pair.decimals1,
-            decimals1: pair.decimals0
-          }, tradeSize)
+          getUniswapV3Prices(network, reversePair, tradeSize),
+          getParaswapPrice(network, reversePair, tradeSize)
         ]);
 
         if (!uniswapReverseQuotes || !paraswapReverseQuote) {
@@ -414,42 +408,40 @@ async function scanArbitrage(networkKey) {
         console.log(`    Uniswap V3 (${pair.token1} → ${pair.token0}): ${uniswapReverseOutput.toFixed(6)}`);
         console.log(`    Paraswap V5 (${pair.token1} → ${pair.token0}): ${paraswapReverseOutput.toFixed(6)}`);
         
-        // Calculate complete arbitrage cycles:
-        // Cycle 1: Start with 1 token0 → Paraswap → get token1 → Uniswap back → get token0
-        const cycle1 = paraswapOutput * uniswapReverseOutput;
+        // Cycle 2: Buy token1 on Uniswap (cheap), sell token1 on Paraswap (expensive)
+        const cycle2Final = uniswapOutput * paraswapReverseOutput;
         
-        // Cycle 2: Start with 1 token0 → Uniswap → get token1 → Paraswap back → get token0
-        const cycle2 = uniswapOutput * paraswapReverseOutput;
+        console.log(`    Cycle 1 (Buy ${pair.token1} on Paraswap → Sell on Uniswap): ${cycle1Final.toFixed(6)} ${pair.token0}`);
+        console.log(`    Cycle 2 (Buy ${pair.token1} on Uniswap → Sell on Paraswap): ${cycle2Final.toFixed(6)} ${pair.token0}`);
         
-        console.log(`    Cycle 1 (Paraswap → Uniswap): ${cycle1.toFixed(6)} ${pair.token0}`);
-        console.log(`    Cycle 2 (Uniswap → Paraswap): ${cycle2.toFixed(6)} ${pair.token0}`);
-        
-        // Find the profitable cycle
-        let buyDex, sellDex, finalAmount, buyOutput, sellOutput;
-        
-        if (cycle1 > 1.003) { // At least 0.3% profit after fees
-          // Profitable: Buy on Paraswap, sell on Uniswap
+        // Find the profitable cycle with CLEAR INSTRUCTIONS
+        let buyToken, sellToken, buyDex, sellDex, finalAmount, tradeAction;
+
+        if (cycle1Final > 1.003) { // At least 0.3% profit after fees
+          // You're buying token1 CHEAP on Paraswap, selling it EXPENSIVE on Uniswap
+          buyToken = pair.token1;
+          sellToken = pair.token1;
           buyDex = 'Paraswap V5';
           sellDex = `Uniswap V3 (${bestUniswapReverse.feeName})`;
-          finalAmount = cycle1;
-          buyOutput = paraswapOutput;
-          sellOutput = uniswapReverseOutput;
-        } else if (cycle2 > 1.003) { // At least 0.3% profit after fees
-          // Profitable: Buy on Uniswap, sell on Paraswap
+          finalAmount = cycle1Final;
+          tradeAction = `Buy ${buyToken} on ${buyDex}, sell ${sellToken} on ${sellDex}`;
+        } else if (cycle2Final > 1.003) { // At least 0.3% profit after fees
+          // You're buying token1 CHEAP on Uniswap, selling it EXPENSIVE on Paraswap
+          buyToken = pair.token1;
+          sellToken = pair.token1;
           buyDex = `Uniswap V3 (${bestUniswap.feeName})`;
           sellDex = 'Paraswap V5';
-          finalAmount = cycle2;
-          buyOutput = uniswapOutput;
-          sellOutput = paraswapReverseOutput;
+          finalAmount = cycle2Final;
+          tradeAction = `Buy ${buyToken} on ${buyDex}, sell ${sellToken} on ${sellDex}`;
         } else {
-          console.log(`    📊 No profitable cycle found (best: ${Math.max(cycle1, cycle2).toFixed(6)})`);
+          console.log(`    📊 No profitable cycle found (best: ${Math.max(cycle1Final, cycle2Final).toFixed(6)})`);
           continue;
         }
         
         const profitPercent = ((finalAmount - 1) * 100);
         
         console.log(`    ✅ FOUND: ${profitPercent.toFixed(3)}% profit!`);
-        console.log(`       Buy on ${buyDex}, Sell on ${sellDex}`);
+        console.log(`       ${tradeAction}`);
         
         const tradeSizeUSD = 10000;
         const estimatedProfit = (tradeSizeUSD * profitPercent / 100).toFixed(2);
@@ -459,10 +451,15 @@ async function scanArbitrage(networkKey) {
           network: networkKey,
           chainId: network.chainId,
           pair: `${pair.token0}/${pair.token1}`,
-          buyDex,
-          sellDex,
-          buyPrice: buyOutput.toFixed(6),
-          sellPrice: sellOutput.toFixed(6),
+          // CLEAR TRADE INSTRUCTIONS:
+          tradeAction: tradeAction,
+          buyToken: buyToken,
+          sellToken: sellToken,
+          buyDex: buyDex,
+          sellDex: sellDex,
+          // Prices show how much token1 you get for 1 token0 (buy) and vice versa (sell)
+          buyPrice: buyToken === pair.token1 ? (buyDex === 'Paraswap V5' ? paraswapOutput : uniswapOutput).toFixed(6) : 'N/A',
+          sellPrice: sellToken === pair.token1 ? (sellDex.includes('Uniswap') ? uniswapReverseOutput : paraswapReverseOutput).toFixed(6) : 'N/A',
           profitPercent: profitPercent.toFixed(3),
           estimatedProfit: estimatedProfit,
           gasEstimate: gasEstimate,
