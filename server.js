@@ -336,7 +336,7 @@ async function scanArbitrage(networkKey) {
   const allPairs = TRADING_PAIRS[networkKey];
   
   // Scan 8 pairs per request
-  const maxPairsPerScan = 8;
+  const maxPairsPerScan = 20;
   const randomStart = Math.floor(Math.random() * allPairs.length);
   const pairsToScan = [];
   
@@ -408,17 +408,29 @@ async function scanArbitrage(networkKey) {
         console.log(`    Uniswap V3 (${pair.token1} → ${pair.token0}): ${uniswapReverseOutput.toFixed(6)}`);
         console.log(`    Paraswap V5 (${pair.token1} → ${pair.token0}): ${paraswapReverseOutput.toFixed(6)}`);
         
-        // Cycle 2: Buy token1 on Uniswap (cheap), sell token1 on Paraswap (expensive)
-        const cycle2Final = uniswapOutput * paraswapReverseOutput;
-        
+        // CORRECT ARBITRAGE CALCULATION WITH CLEAR INSTRUCTIONS
+        // Declare variables at the correct scope
+        let cycle1Final, cycle2Final, buyToken, sellToken, buyDex, sellDex, finalAmount, tradeAction;
+
+       // Cycle 1: Buy token1 on Paraswap (cheap), sell token1 on Uniswap (expensive)
+        cycle1Final = paraswapOutput * uniswapReverseOutput;
+
+      // Cycle 2: Buy token1 on Uniswap (cheap), sell token1 on Paraswap (expensive)
+        cycle2Final = uniswapOutput * paraswapReverseOutput;
+
         console.log(`    Cycle 1 (Buy ${pair.token1} on Paraswap → Sell on Uniswap): ${cycle1Final.toFixed(6)} ${pair.token0}`);
         console.log(`    Cycle 2 (Buy ${pair.token1} on Uniswap → Sell on Paraswap): ${cycle2Final.toFixed(6)} ${pair.token0}`);
-        
-        // Find the profitable cycle with CLEAR INSTRUCTIONS
-        let buyToken, sellToken, buyDex, sellDex, finalAmount, tradeAction;
+
+    // Reset variables before determining profitable cycle
+        buyToken = null;
+        sellToken = null;
+        buyDex = null;
+        sellDex = null;
+        finalAmount = null;
+        tradeAction = null;
 
         if (cycle1Final > 1.003) { // At least 0.3% profit after fees
-          // You're buying token1 CHEAP on Paraswap, selling it EXPENSIVE on Uniswap
+    // You're buying token1 CHEAP on Paraswap, selling it EXPENSIVE on Uniswap
           buyToken = pair.token1;
           sellToken = pair.token1;
           buyDex = 'Paraswap V5';
@@ -426,18 +438,24 @@ async function scanArbitrage(networkKey) {
           finalAmount = cycle1Final;
           tradeAction = `Buy ${buyToken} on ${buyDex}, sell ${sellToken} on ${sellDex}`;
         } else if (cycle2Final > 1.003) { // At least 0.3% profit after fees
-          // You're buying token1 CHEAP on Uniswap, selling it EXPENSIVE on Paraswap
+   // You're buying token1 CHEAP on Uniswap, selling it EXPENSIVE on Paraswap
           buyToken = pair.token1;
           sellToken = pair.token1;
           buyDex = `Uniswap V3 (${bestUniswap.feeName})`;
           sellDex = 'Paraswap V5';
           finalAmount = cycle2Final;
           tradeAction = `Buy ${buyToken} on ${buyDex}, sell ${sellToken} on ${sellDex}`;
-        } else {
-          console.log(`    📊 No profitable cycle found (best: ${Math.max(cycle1Final, cycle2Final).toFixed(6)})`);
-          continue;
-        }
-        
+     } else {
+      console.log(`    📊 No profitable cycle found (best: ${Math.max(cycle1Final, cycle2Final).toFixed(6)})`);
+      continue;
+   }
+
+// Now check if we found a profitable opportunity
+      if (!tradeAction) {
+       console.log(`    📊 No profitable cycle found (best: ${Math.max(cycle1Final, cycle2Final).toFixed(6)})`);
+       continue;
+    }
+
         const profitPercent = ((finalAmount - 1) * 100);
         
         console.log(`    ✅ FOUND: ${profitPercent.toFixed(3)}% profit!`);
