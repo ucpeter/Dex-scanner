@@ -408,55 +408,72 @@ async function scanArbitrage(networkKey) {
         console.log(`    Uniswap V3 (${pair.token1} → ${pair.token0}): ${uniswapReverseOutput.toFixed(6)}`);
         console.log(`    Paraswap V5 (${pair.token1} → ${pair.token0}): ${paraswapReverseOutput.toFixed(6)}`);
         
-        // CORRECT ARBITRAGE CALCULATION WITH CLEAR INSTRUCTIONS
-        // Declare variables at the correct scope
+        // ===== CORRECT ARBITRAGE CALCULATION WITH PRICE VALIDATION =====
+// Declare variables at the correct scope
         let cycle1Final, cycle2Final, buyToken, sellToken, buyDex, sellDex, finalAmount, tradeAction;
 
-       // Cycle 1: Buy token1 on Paraswap (cheap), sell token1 on Uniswap (expensive)
-        cycle1Final = paraswapOutput * uniswapReverseOutput;
+// 1. FIRST VALIDATE PRICES ARE MATHEMATICALLY CONSISTENT
+        console.log(`    🔍 PRICE SANITY CHECK:`);
+        console.log(`       Forward: 1 ${pair.token0} = ${uniswapOutput.toFixed(6)} ${pair.token1} on Uniswap`);
+        const expectedReverse = 1 / uniswapOutput;
+        console.log(`       Expected Reverse: 1 ${pair.token1} = ${expectedReverse.toFixed(6)} ${pair.token0}`);
+        console.log(`       Actual Reverse: 1 ${pair.token1} = ${uniswapReverseOutput.toFixed(6)} ${pair.token0} on Uniswap`);
 
-      // Cycle 2: Buy token1 on Uniswap (cheap), sell token1 on Paraswap (expensive)
-        cycle2Final = uniswapOutput * paraswapReverseOutput;
+        const priceError = Math.abs((uniswapReverseOutput - expectedReverse) / expectedReverse);
+        if (priceError > 0.01) { // More than 1% error - data is unreliable
+         console.log(`    ⚠️  Price data invalid! Reverse price error: ${(priceError*100).toFixed(2)}%`);
+         console.log(`       Skipping pair - unreliable data`);
+         continue; // Skip this pair
+      }
 
-        console.log(`    Cycle 1 (Buy ${pair.token1} on Paraswap → Sell on Uniswap): ${cycle1Final.toFixed(6)} ${pair.token0}`);
-        console.log(`    Cycle 2 (Buy ${pair.token1} on Uniswap → Sell on Paraswap): ${cycle2Final.toFixed(6)} ${pair.token0}`);
+// 2. CALCULATE REAL ARBITRAGE (track actual token amounts)
+// Cycle 1: token0 → token1 on Paraswap → token1 → token0 on Uniswap
+       const token1FromParaswap = paraswapOutput; // token1 from 1 token0 on Paraswap
+       const token0FromUniswap = token1FromParaswap * uniswapReverseOutput; // token0 from selling token1 on Uniswap
+       cycle1Final = token0FromUniswap;
 
-    // Reset variables before determining profitable cycle
-        buyToken = null;
-        sellToken = null;
-        buyDex = null;
-        sellDex = null;
-        finalAmount = null;
-        tradeAction = null;
+// Cycle 2: token0 → token1 on Uniswap → token1 → token0 on Paraswap
+       const token1FromUniswap = uniswapOutput; // token1 from 1 token0 on Uniswap
+       const token0FromParaswap = token1FromUniswap * paraswapReverseOutput; // token0 from selling token1 on Paraswap
+       cycle2Final = token0FromParaswap;
 
-        if (cycle1Final > 1.003) { // At least 0.3% profit after fees
-    // You're buying token1 CHEAP on Paraswap, selling it EXPENSIVE on Uniswap
-          buyToken = pair.token1;
-          sellToken = pair.token1;
-          buyDex = 'Paraswap V5';
-          sellDex = `Uniswap V3 (${bestUniswapReverse.feeName})`;
-          finalAmount = cycle1Final;
-          tradeAction = `Buy ${buyToken} on ${buyDex}, sell ${sellToken} on ${sellDex}`;
-        } else if (cycle2Final > 1.003) { // At least 0.3% profit after fees
-   // You're buying token1 CHEAP on Uniswap, selling it EXPENSIVE on Paraswap
-          buyToken = pair.token1;
-          sellToken = pair.token1;
-          buyDex = `Uniswap V3 (${bestUniswap.feeName})`;
-          sellDex = 'Paraswap V5';
-          finalAmount = cycle2Final;
-          tradeAction = `Buy ${buyToken} on ${buyDex}, sell ${sellToken} on ${sellDex}`;
-     } else {
-      console.log(`    📊 No profitable cycle found (best: ${Math.max(cycle1Final, cycle2Final).toFixed(6)})`);
-      continue;
-   }
+       console.log(`    📊 REAL ARBITRAGE CALCULATION:`);
+       console.log(`       Cycle 1: 1 ${pair.token0} → ${token1FromParaswap.toFixed(6)} ${pair.token1} (Paraswap) → ${token0FromUniswap.toFixed(6)} ${pair.token0} (Uniswap)`);
+       console.log(`       Cycle 2: 1 ${pair.token0} → ${token1FromUniswap.toFixed(6)} ${pair.token1} (Uniswap) → ${token0FromParaswap.toFixed(6)} ${pair.token0} (Paraswap)`);
+       console.log(`       Cycle 1 Result: ${cycle1Final.toFixed(6)} ${pair.token0} (${((cycle1Final-1)*100).toFixed(3)}% profit)`);
+       console.log(`       Cycle 2 Result: ${cycle2Final.toFixed(6)} ${pair.token0} (${((cycle2Final-1)*100).toFixed(3)}% profit)`);
 
-// Now check if we found a profitable opportunity
-      if (!tradeAction) {
-       console.log(`    📊 No profitable cycle found (best: ${Math.max(cycle1Final, cycle2Final).toFixed(6)})`);
-       continue;
-    }
+// 3. FIND PROFITABLE CYCLE
+       buyToken = null;
+       sellToken = null;
+       buyDex = null;
+       sellDex = null;
+       finalAmount = null;
+       tradeAction = null;
+
+       if (cycle1Final > 1.003) { // At least 0.3% profit after fees
+        buyToken = pair.token1;
+        sellToken = pair.token1;
+        buyDex = 'Paraswap V5';
+        sellDex = `Uniswap V3 (${bestUniswapReverse.feeName})`;
+        finalAmount = cycle1Final;
+        tradeAction = `Buy ${buyToken} on ${buyDex}, sell ${sellToken} on ${sellDex}`;
+     } else if (cycle2Final > 1.003) { // At least 0.3% profit after fees
+       buyToken = pair.token1;
+       sellToken = pair.token1;
+       buyDex = `Uniswap V3 (${bestUniswap.feeName})`;
+       sellDex = 'Paraswap V5';
+       finalAmount = cycle2Final;
+       tradeAction = `Buy ${buyToken} on ${buyDex}, sell ${sellToken} on ${sellDex}`;
+     }
+
+       if (!tradeAction) {
+        console.log(`    📊 No profitable cycle found (best: ${Math.max(cycle1Final, cycle2Final).toFixed(6)})`);
+        continue;
+     }
 
         const profitPercent = ((finalAmount - 1) * 100);
+// ===== END CORRECTED CALCULATION =====
         
         console.log(`    ✅ FOUND: ${profitPercent.toFixed(3)}% profit!`);
         console.log(`       ${tradeAction}`);
