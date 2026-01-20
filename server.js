@@ -360,7 +360,7 @@ async function scanArbitrage(networkKey) {
   
   const allPairs = TRADING_PAIRS[networkKey];
   
-  const maxPairsPerScan = 8;
+  const maxPairsPerScan = 20;
   const randomStart = Math.floor(Math.random() * allPairs.length);
   const pairsToScan = [];
   
@@ -390,7 +390,7 @@ async function scanArbitrage(networkKey) {
       if (uniswapQuotes && uniswapQuotes.length > 0 && paraswapQuote) {
         
         // ===== CRITICAL FIX: Filter out multi-hop routes =====
-        if (paraswapQuote.routeAnalysis && paraswapwapQuote.routeAnalysis.isMultiHop) {
+        if (paraswapQuote.routeAnalysis && paraswapQuote.routeAnalysis.isMultiHop) {
           console.log(`    ⚠️  SKIPPING: Paraswap route is multi-hop (${paraswapQuote.routeAnalysis.hopCount} steps).`);
           continue;
         }
