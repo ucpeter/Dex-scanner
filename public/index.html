@@ -3,139 +3,154 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Real-Time DEX Arbitrage Scanner</title>
+  <title>DEX Arbitrage Scanner</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    .modal {
+      display: none;
+      position: fixed;
+      z-index: 1000;
+      left: 0;
+      top: 0;
+      width: 100%;
+      height: 100%;
+      background-color: rgba(0, 0, 0, 0.7);
+    }
+    .modal-content {
+      background-color: #1e293b;
+      margin: 5% auto;
+      padding: 20px;
+      border-radius: 10px;
+      width: 90%;
+      max-width: 600px;
+      border: 1px solid #334155;
+    }
+    .close {
+      color: #94a3b8;
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .close:hover {
+      color: #f1f5f9;
+    }
+  </style>
 </head>
 <body class="bg-gray-900">
   <div id="root">
-    <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-6">
+    <div class="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4 md:p-6">
       <div class="max-w-7xl mx-auto">
         <!-- Header -->
         <div class="text-center mb-8">
-          <h1 class="text-4xl font-bold text-white mb-2">
+          <h1 class="text-3xl md:text-4xl font-bold text-white mb-2">
             <i class="fas fa-search-dollar"></i> Real-Time DEX Arbitrage Scanner
           </h1>
-          <p class="text-gray-300">Uniswap V3 ↔ Paraswap V5 - Dynamic Token Pairs</p>
-          <p class="text-sm text-green-400 mt-1">
-            <i class="fas fa-bolt"></i> Live blockchain scanning with dynamic pair generation
+          <p class="text-gray-300 text-sm md:text-base">Uniswap V3 ↔ Paraswap V5 - Fixed Multi-Hop Filtering</p>
+          <p class="text-xs md:text-sm text-green-400 mt-1">
+            <i class="fas fa-bolt"></i> Direct swaps only - No multi-hop false positives
           </p>
         </div>
 
         <!-- Network Selector -->
-        <div class="mb-6 bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <h3 class="text-xl font-semibold text-white mb-4">
+        <div class="mb-6 bg-slate-800 rounded-lg p-4 md:p-6 border border-slate-700">
+          <h3 class="text-lg md:text-xl font-semibold text-white mb-4">
             <i class="fas fa-network-wired"></i> Select Network
           </h3>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="networkButtons">
             <!-- Buttons will be inserted here -->
           </div>
-          <p id="networkWarning" class="text-sm text-yellow-400 mt-3 hidden">
+          <p id="networkWarning" class="text-xs md:text-sm text-yellow-400 mt-3 hidden">
             <i class="fas fa-exclamation-triangle"></i> Stop scanning to switch networks
           </p>
         </div>
 
         <!-- Stats & Info -->
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-            <p class="text-gray-400 text-sm"><i class="fas fa-globe"></i> Network</p>
-            <p class="text-xl font-bold text-white" id="currentNetwork">Arbitrum</p>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 md:gap-4 mb-6">
+          <div class="bg-slate-800 rounded-lg p-3 md:p-4 border border-slate-700">
+            <p class="text-gray-400 text-xs md:text-sm"><i class="fas fa-globe"></i> Network</p>
+            <p class="text-lg md:text-xl font-bold text-white" id="currentNetwork">Arbitrum</p>
           </div>
-          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-            <p class="text-gray-400 text-sm"><i class="fas fa-chart-line"></i> Opportunities</p>
-            <p class="text-2xl font-bold text-white" id="totalOpps">0</p>
+          <div class="bg-slate-800 rounded-lg p-3 md:p-4 border border-slate-700">
+            <p class="text-gray-400 text-xs md:text-sm"><i class="fas fa-chart-line"></i> Opportunities</p>
+            <p class="text-xl md:text-2xl font-bold text-white" id="totalOpps">0</p>
           </div>
-          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-            <p class="text-gray-400 text-sm"><i class="fas fa-money-bill-wave"></i> Avg Profit</p>
-            <p class="text-2xl font-bold text-green-400" id="avgProfit">$0.00</p>
+          <div class="bg-slate-800 rounded-lg p-3 md:p-4 border border-slate-700">
+            <p class="text-gray-400 text-xs md:text-sm"><i class="fas fa-money-bill-wave"></i> Avg Profit</p>
+            <p class="text-xl md:text-2xl font-bold text-green-400" id="avgProfit">$0.00</p>
           </div>
-          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-            <p class="text-gray-400 text-sm"><i class="fas fa-sync-alt"></i> Scans</p>
-            <p class="text-2xl font-bold text-purple-400" id="scansCount">0</p>
+          <div class="bg-slate-800 rounded-lg p-3 md:p-4 border border-slate-700">
+            <p class="text-gray-400 text-xs md:text-sm"><i class="fas fa-sync-alt"></i> Scans</p>
+            <p class="text-xl md:text-2xl font-bold text-purple-400" id="scansCount">0</p>
           </div>
-          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-            <p class="text-gray-400 text-sm"><i class="fas fa-link"></i> Total Pairs</p>
-            <p class="text-2xl font-bold text-blue-400" id="totalPairs">Loading...</p>
+          <div class="bg-slate-800 rounded-lg p-3 md:p-4 border border-slate-700">
+            <p class="text-gray-400 text-xs md:text-sm"><i class="fas fa-link"></i> Total Pairs</p>
+            <p class="text-xl md:text-2xl font-bold text-blue-400" id="totalPairs">Loading...</p>
           </div>
         </div>
 
         <!-- Control Button -->
         <div class="flex justify-center mb-6">
-          <button id="scanButton" class="flex items-center gap-3 px-8 py-4 rounded-lg font-semibold text-white transition-all bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 shadow-lg hover:shadow-xl">
-            <i class="fas fa-play"></i> Start Scanning
+          <button id="scanButton" class="flex items-center gap-2 md:gap-3 px-6 md:px-8 py-3 md:py-4 rounded-lg font-semibold text-white transition-all bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 shadow-lg hover:shadow-xl">
+            <i class="fas fa-play"></i> <span class="hidden md:inline">Start Scanning</span>
           </button>
         </div>
 
         <!-- Status Message -->
         <div id="statusMessage" class="mb-6 bg-blue-800 rounded-lg p-4 border border-blue-700 hidden">
-          <p class="text-white text-center" id="statusText"></p>
+          <p class="text-white text-center text-sm md:text-base" id="statusText"></p>
         </div>
 
         <!-- Opportunities List -->
-        <div class="bg-slate-800 rounded-lg p-6 border border-slate-700 mb-6">
+        <div class="bg-slate-800 rounded-lg p-4 md:p-6 border border-slate-700 mb-6">
           <div class="flex justify-between items-center mb-4">
-            <h3 class="text-xl font-semibold text-white">
+            <h3 class="text-lg md:text-xl font-semibold text-white">
               <i class="fas fa-bolt"></i> Live Arbitrage Opportunities
             </h3>
-            <button id="refreshPairs" class="text-sm bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded transition-colors">
-              <i class="fas fa-redo"></i> Refresh Pairs
+            <button id="refreshPairs" class="text-xs md:text-sm bg-slate-700 hover:bg-slate-600 text-white px-3 py-1 rounded transition-colors">
+              <i class="fas fa-redo"></i> Refresh
             </button>
           </div>
           
           <div id="opportunitiesList">
             <div class="text-center py-12 text-gray-400">
               <i class="fas fa-search fa-2x mb-4"></i>
-              <p class="text-lg">No opportunities found yet</p>
-              <p class="text-sm mt-2">Start scanning to discover arbitrage opportunities</p>
+              <p class="text-base md:text-lg">No opportunities found yet</p>
+              <p class="text-xs md:text-sm mt-2">Start scanning to discover arbitrage opportunities</p>
             </div>
-          </div>
-        </div>
-
-        <!-- Scanner Info -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-            <h4 class="text-lg font-semibold text-white mb-2">
-              <i class="fas fa-university"></i> Uniswap V3
-            </h4>
-            <p class="text-sm text-gray-400">Multiple fee tiers (0.05%, 0.3%, 1%)</p>
-            <p class="text-sm text-blue-400 mt-1">On-chain price quotes</p>
-          </div>
-          
-          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-            <h4 class="text-lg font-semibold text-white mb-2">
-              <i class="fas fa-random"></i> Paraswap V5
-            </h4>
-            <p class="text-sm text-gray-400">Multi-DEX aggregator</p>
-            <p class="text-sm text-purple-400 mt-1">Best route finding</p>
-          </div>
-          
-          <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
-            <h4 class="text-lg font-semibold text-white mb-2">
-              <i class="fas fa-database"></i> Dynamic Pairs
-            </h4>
-            <p class="text-sm text-gray-400">Generated from token lists</p>
-            <p class="text-sm text-green-400 mt-1">WETH/USDC pairs + top tokens</p>
           </div>
         </div>
 
         <!-- Footer -->
-        <div class="bg-slate-800 rounded-lg p-4 border border-slate-700">
+        <div class="bg-slate-800 rounded-lg p-3 md:p-4 border border-slate-700">
           <div class="flex flex-col md:flex-row justify-between items-center">
             <div>
-              <p class="text-sm text-green-400 font-semibold mb-1">
-                <i class="fas fa-check-circle"></i> REAL-TIME BLOCKCHAIN SCANNING
+              <p class="text-xs md:text-sm text-green-400 font-semibold mb-1">
+                <i class="fas fa-check-circle"></i> DIRECT SWAPS ONLY
               </p>
               <p class="text-xs text-gray-400">
-                Direct RPC calls to Uniswap V3 & Paraswap V5 APIs
+                Multi-hop routes automatically filtered out
               </p>
             </div>
             <div class="mt-2 md:mt-0">
               <p class="text-xs text-gray-500">
-                <i class="fas fa-info-circle"></i> Scanner: Uniswap V3 ↔ Paraswap V5
+                <i class="fas fa-info-circle"></i> Uniswap V3 ↔ Paraswap V5
               </p>
             </div>
           </div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Details Modal -->
+  <div id="detailsModal" class="modal">
+    <div class="modal-content">
+      <span class="close" onclick="closeModal()">&times;</span>
+      <h2 class="text-xl font-bold text-white mb-4" id="modalTitle">Arbitrage Details</h2>
+      <div id="modalContent" class="text-gray-300 space-y-4">
+        <!-- Content will be inserted here -->
       </div>
     </div>
   </div>
@@ -170,20 +185,19 @@
           data.networks.forEach(network => {
             const button = document.createElement('button');
             button.id = `network-${network.id}`;
-            button.className = `p-4 rounded-lg border-2 transition-all cursor-pointer ${
+            button.className = `p-3 md:p-4 rounded-lg border-2 transition-all cursor-pointer ${
               network.id === selectedNetwork 
                 ? 'bg-gradient-to-r from-cyan-600 to-blue-700 border-white text-white' 
                 : 'bg-slate-700 border-slate-600 text-gray-300 hover:border-slate-500'
             }`;
             button.innerHTML = `
-              <div class="font-semibold text-lg">${network.name}</div>
+              <div class="font-semibold text-sm md:text-base">${network.name}</div>
               <div class="text-xs mt-1">Chain ${network.chainId}</div>
               <div class="text-xs text-gray-400 mt-1">${network.totalPairs} pairs</div>
             `;
             button.onclick = () => selectNetwork(network.id);
             container.appendChild(button);
             
-            // Update total pairs for selected network
             if (network.id === selectedNetwork) {
               document.getElementById('totalPairs').textContent = network.totalPairs;
               stats.totalPairs = network.totalPairs;
@@ -192,18 +206,17 @@
         }
       } catch (error) {
         console.error('Error loading networks:', error);
-        // Fallback to hardcoded networks
         const fallbackNetworks = [
-          { id: 'arbitrum', name: 'Arbitrum', color: 'bg-cyan-600', chainId: 42161 },
-          { id: 'polygon', name: 'Polygon', color: 'bg-purple-600', chainId: 137 }
+          { id: 'arbitrum', name: 'Arbitrum', chainId: 42161 },
+          { id: 'polygon', name: 'Polygon', chainId: 137 }
         ];
         
         fallbackNetworks.forEach(network => {
           const button = document.createElement('button');
           button.id = `network-${network.id}`;
-          button.className = `p-4 rounded-lg border-2 transition-all cursor-pointer ${
+          button.className = `p-3 md:p-4 rounded-lg border-2 transition-all cursor-pointer ${
             network.id === selectedNetwork 
-              ? `${network.color} border-white text-white` 
+              ? 'bg-cyan-600 border-white text-white' 
               : 'bg-slate-700 border-slate-600 text-gray-300 hover:border-slate-500'
           }`;
           button.innerHTML = `
@@ -225,7 +238,6 @@
       
       selectedNetwork = network;
       
-      // Update network info
       try {
         const response = await fetch(`${API_BASE_URL}/api/networks`);
         const data = await response.json();
@@ -240,17 +252,15 @@
         document.getElementById('currentNetwork').textContent = network.charAt(0).toUpperCase() + network.slice(1);
       }
       
-      // Update button styles
       document.querySelectorAll('[id^="network-"]').forEach(btn => {
         const btnId = btn.id.replace('network-', '');
         if (btnId === network) {
-          btn.className = 'p-4 rounded-lg border-2 transition-all cursor-pointer bg-gradient-to-r from-cyan-600 to-blue-700 border-white text-white';
+          btn.className = 'p-3 md:p-4 rounded-lg border-2 transition-all cursor-pointer bg-gradient-to-r from-cyan-600 to-blue-700 border-white text-white';
         } else {
-          btn.className = 'p-4 rounded-lg border-2 transition-all cursor-pointer bg-slate-700 border-slate-600 text-gray-300 hover:border-slate-500';
+          btn.className = 'p-3 md:p-4 rounded-lg border-2 transition-all cursor-pointer bg-slate-700 border-slate-600 text-gray-300 hover:border-slate-500';
         }
       });
 
-      // Reset data
       opportunities = [];
       stats.totalOpportunities = 0;
       stats.avgProfit = 0;
@@ -273,18 +283,14 @@
         }
 
         if (data.success && data.opportunities.length > 0) {
-          // Add new opportunities with unique IDs
           const newOpps = data.opportunities.map(opp => ({
             ...opp,
             id: Date.now() + Math.random(),
-            // Calculate net profit
             netProfit: (parseFloat(opp.estimatedProfit) - parseFloat(opp.gasEstimate)).toFixed(2)
           }));
 
-          // Add to beginning and keep only latest 15
-          opportunities = [...newOpps, ...opportunities].slice(0, 15);
+          opportunities = [...newOpps, ...opportunities].slice(0, 20);
 
-          // Update stats
           const profits = newOpps.map(o => parseFloat(o.estimatedProfit));
           stats.totalOpportunities += newOpps.length;
           stats.avgProfit = profits.length > 0 ? (profits.reduce((a, b) => a + b, 0) / profits.length).toFixed(2) : '0.00';
@@ -316,7 +322,6 @@
       const statusMsg = document.getElementById('statusMessage');
       const statusText = document.getElementById('statusText');
       
-      // Color mapping
       const colorClasses = {
         'blue': 'bg-blue-800 border-blue-700',
         'green': 'bg-green-800 border-green-700',
@@ -342,8 +347,8 @@
         container.innerHTML = `
           <div class="text-center py-12 text-gray-400">
             <i class="fas fa-search fa-2x mb-4"></i>
-            <p class="text-lg">No opportunities found yet</p>
-            <p class="text-sm mt-2">Start scanning to discover arbitrage opportunities</p>
+            <p class="text-base md:text-lg">No opportunities found yet</p>
+            <p class="text-xs md:text-sm mt-2">Start scanning to discover arbitrage opportunities</p>
           </div>
         `;
         return;
@@ -353,16 +358,15 @@
         const profitClass = parseFloat(opp.netProfit) > 0 ? 'text-green-400' : 'text-red-400';
         const timestamp = new Date(opp.timestamp).toLocaleTimeString([], { 
           hour: '2-digit', 
-          minute: '2-digit',
-          second: '2-digit'
+          minute: '2-digit'
         });
         
         return `
           <div class="bg-slate-700 rounded-lg p-4 border border-slate-600 mb-4">
             <div class="flex justify-between items-start mb-3">
               <div>
-                <div class="flex items-center gap-2 mb-1">
-                  <h4 class="text-lg font-bold text-white">${opp.pair}</h4>
+                <div class="flex items-center gap-2 mb-1 flex-wrap">
+                  <h4 class="text-base md:text-lg font-bold text-white">${opp.pair}</h4>
                   <span class="text-xs px-2 py-1 rounded bg-gradient-to-r from-blue-600 to-purple-600 text-white">
                     ${opp.network.toUpperCase()}
                   </span>
@@ -370,41 +374,51 @@
                     <i class="fas fa-bolt"></i> LIVE
                   </span>
                 </div>
-                <p class="text-sm text-gray-400">
+                <p class="text-xs md:text-sm text-gray-400">
                   <i class="far fa-clock"></i> ${timestamp}
                 </p>
               </div>
               <div class="text-right">
-                <p class="text-2xl font-bold ${profitClass}">+${opp.profitPercent}%</p>
-                <p class="text-sm text-gray-400">Profit: $${opp.estimatedProfit}</p>
+                <p class="text-xl md:text-2xl font-bold ${profitClass}">+${opp.profitPercent}%</p>
+                <p class="text-xs md:text-sm text-gray-400">Profit: $${opp.estimatedProfit}</p>
                 <p class="text-xs text-gray-500">on $${opp.tradeSize.toLocaleString()} trade</p>
               </div>
             </div>
             
+            <!-- CLEAR ARBITRAGE INSTRUCTION -->
+            <div class="bg-gradient-to-r from-slate-800 to-slate-900 rounded p-3 mb-3">
+              <p class="text-sm font-semibold text-white mb-1">
+                <i class="fas fa-exchange-alt"></i> Arbitrage Strategy:
+              </p>
+              <p class="text-green-300 text-sm md:text-base">
+                ${opp.tradeAction}
+              </p>
+            </div>
+            
             <!-- DEX Comparison -->
-            <div class="grid grid-cols-2 gap-4 mb-3">
+            <div class="grid grid-cols-2 gap-3 md:gap-4 mb-3">
               <div class="bg-gradient-to-br from-blue-900 to-slate-800 rounded p-3">
                 <p class="text-xs text-gray-400 mb-1">
                   <i class="fas fa-arrow-down text-green-400"></i> Buy on
                 </p>
-                <p class="font-semibold text-white">${opp.buyDex}</p>
-                <p class="text-sm text-blue-400">1 ${opp.pair.split('/')[0]} = ${opp.buyPrice} ${opp.pair.split('/')[1]}</p>
+                <p class="font-semibold text-white text-sm md:text-base">${opp.buyDex}</p>
+                <p class="text-xs md:text-sm text-blue-400">${opp.buyPrice} ${opp.buyToken} per ${opp.pair.split('/')[0]}</p>
               </div>
               <div class="bg-gradient-to-br from-purple-900 to-slate-800 rounded p-3">
                 <p class="text-xs text-gray-400 mb-1">
                   <i class="fas fa-arrow-up text-red-400"></i> Sell on
                 </p>
-                <p class="font-semibold text-white">${opp.sellDex}</p>
-                <p class="text-sm text-green-400">1 ${opp.pair.split('/')[0]} = ${opp.sellPrice} ${opp.pair.split('/')[1]}</p>
+                <p class="font-semibold text-white text-sm md:text-base">${opp.sellDex}</p>
+                <p class="text-xs md:text-sm text-green-400">${opp.sellPrice} ${opp.sellToken} per ${opp.pair.split('/')[0]}</p>
               </div>
             </div>
 
             <!-- Profit Summary -->
-            <div class="bg-gradient-to-r from-slate-800 to-slate-900 rounded p-3 mb-3">
+            <div class="bg-gradient-to-r from-slate-800 to-slate-900 rounded p-3 mb-4">
               <div class="flex justify-between items-center">
                 <div>
-                  <p class="text-sm text-gray-400">Net Profit (after gas)</p>
-                  <p class="text-xl font-bold ${profitClass}">
+                  <p class="text-xs md:text-sm text-gray-400">Net Profit (after gas)</p>
+                  <p class="text-lg md:text-xl font-bold ${profitClass}">
                     $${opp.netProfit}
                   </p>
                 </div>
@@ -417,66 +431,181 @@
               </div>
             </div>
 
-            <!-- Strategy Details -->
-            <div class="bg-slate-900 rounded p-3 mt-4">
-              <div class="flex items-center justify-between mb-2">
-                <h5 class="font-semibold text-white">
-                  <i class="fas fa-robot"></i> Trading Strategy
-                </h5>
-                <button 
-                  onclick="copyStrategy(${JSON.stringify(opp).replace(/"/g, '&quot;')})" 
-                  class="text-sm bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white px-3 py-1 rounded transition-colors"
-                >
-                  <i class="far fa-copy"></i> Copy Details
-                </button>
-              </div>
-              
-              <div class="text-sm text-gray-300 space-y-2">
-                <div class="flex items-center gap-2">
-                  <i class="fas fa-exchange-alt text-blue-400"></i>
-                  <span>Buy ${opp.pair.split('/')[0]} on <span class="text-blue-300">${opp.buyDex}</span></span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <i class="fas fa-exchange-alt text-purple-400"></i>
-                  <span>Sell ${opp.pair.split('/')[1]} on <span class="text-purple-300">${opp.sellDex}</span></span>
-                </div>
-                <div class="flex items-center gap-2">
-                  <i class="fas fa-wallet text-green-400"></i>
-                  <span>Net profit: <span class="text-green-300">$${opp.netProfit}</span> (${opp.profitPercent}%)</span>
-                </div>
-              </div>
-              
-              <!-- Address Info -->
-              <div class="mt-3 pt-3 border-t border-slate-700">
-                <p class="text-xs text-gray-500 truncate">
-                  Token0: ${opp.token0Address}
-                </p>
-                <p class="text-xs text-gray-500 truncate mt-1">
-                  Token1: ${opp.token1Address}
-                </p>
-              </div>
+            <!-- Action Buttons -->
+            <div class="flex flex-col sm:flex-row gap-2">
+              <button 
+                onclick="viewDetails(${JSON.stringify(opp).replace(/"/g, '&quot;')})" 
+                class="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white py-2 px-4 rounded transition-colors font-semibold text-sm md:text-base"
+              >
+                <i class="fas fa-eye"></i> View Details
+              </button>
+              <button 
+                onclick="copyTradeDetails(${JSON.stringify(opp).replace(/"/g, '&quot;')})" 
+                class="flex-1 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white py-2 px-4 rounded transition-colors font-semibold text-sm md:text-base"
+              >
+                <i class="far fa-copy"></i> Copy Details
+              </button>
             </div>
           </div>
         `;
       }).join('');
     }
 
-    // Copy strategy function
-    function copyStrategy(opp) {
-      const strategyText = `
-Arbitrage Opportunity:
+    // View details modal
+    function viewDetails(opp) {
+      const modal = document.getElementById('detailsModal');
+      const modalContent = document.getElementById('modalContent');
+      const modalTitle = document.getElementById('modalTitle');
+      
+      modalTitle.textContent = `Arbitrage Details: ${opp.pair}`;
+      
+      const tradeFlow = opp.tradeAction.includes('Paraswap') && opp.tradeAction.includes('Uniswap') ? 
+        `Start with 1 ${opp.pair.split('/')[0]} → Buy ${opp.buyToken} on ${opp.buyDex} → Sell ${opp.sellToken} on ${opp.sellDex} → Get ${(parseFloat(opp.profitPercent)/100 + 1).toFixed(6)} ${opp.pair.split('/')[0]}` :
+        'Complete trade cycle details';
+      
+      modalContent.innerHTML = `
+        <div class="bg-slate-900 rounded p-4 mb-4">
+          <h3 class="text-lg font-semibold text-white mb-3">📊 Opportunity Summary</h3>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <p class="text-gray-400 text-sm">Network</p>
+              <p class="text-white font-semibold">${opp.network.charAt(0).toUpperCase() + opp.network.slice(1)}</p>
+            </div>
+            <div>
+              <p class="text-gray-400 text-sm">Pair</p>
+              <p class="text-white font-semibold">${opp.pair}</p>
+            </div>
+            <div>
+              <p class="text-gray-400 text-sm">Profit</p>
+              <p class="text-green-400 font-semibold text-xl">+${opp.profitPercent}%</p>
+            </div>
+            <div>
+              <p class="text-gray-400 text-sm">Net Profit</p>
+              <p class="text-green-300 font-semibold">$${opp.netProfit}</p>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-slate-900 rounded p-4 mb-4">
+          <h3 class="text-lg font-semibold text-white mb-3">🔄 Arbitrage Strategy</h3>
+          <p class="text-green-300 text-lg mb-2">${opp.tradeAction}</p>
+          <p class="text-gray-300 text-sm">${tradeFlow}</p>
+        </div>
+        
+        <div class="bg-slate-900 rounded p-4 mb-4">
+          <h3 class="text-lg font-semibold text-white mb-3">💰 Trade Details</h3>
+          <div class="space-y-3">
+            <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+              <div>
+                <p class="text-gray-400 text-sm">Token to Buy</p>
+                <p class="text-white font-semibold">${opp.buyToken}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-gray-400 text-sm">On Exchange</p>
+                <p class="text-blue-300 font-semibold">${opp.buyDex}</p>
+              </div>
+            </div>
+            <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+              <div>
+                <p class="text-gray-400 text-sm">Buy Price</p>
+                <p class="text-white font-semibold">${opp.buyPrice}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-gray-400 text-sm">Rate</p>
+                <p class="text-blue-300 text-sm">1 ${opp.pair.split('/')[0]} = ${opp.buyPrice} ${opp.buyToken}</p>
+              </div>
+            </div>
+            <div class="flex justify-between items-center border-b border-slate-700 pb-2">
+              <div>
+                <p class="text-gray-400 text-sm">Token to Sell</p>
+                <p class="text-white font-semibold">${opp.sellToken}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-gray-400 text-sm">On Exchange</p>
+                <p class="text-purple-300 font-semibold">${opp.sellDex}</p>
+              </div>
+            </div>
+            <div class="flex justify-between items-center">
+              <div>
+                <p class="text-gray-400 text-sm">Sell Price</p>
+                <p class="text-white font-semibold">${opp.sellPrice}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-gray-400 text-sm">Rate</p>
+                <p class="text-purple-300 text-sm">1 ${opp.sellToken} = ${opp.sellPrice} ${opp.pair.split('/')[0]}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div class="bg-slate-900 rounded p-4">
+          <h3 class="text-lg font-semibold text-white mb-3">📈 Financial Details</h3>
+          <div class="space-y-2">
+            <div class="flex justify-between">
+              <span class="text-gray-400">Trade Size:</span>
+              <span class="text-white">$${opp.tradeSize.toLocaleString()}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Gross Profit:</span>
+              <span class="text-green-400">$${opp.estimatedProfit}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-gray-400">Gas Cost:</span>
+              <span class="text-yellow-400">$${opp.gasEstimate}</span>
+            </div>
+            <div class="flex justify-between border-t border-slate-700 pt-2">
+              <span class="text-gray-400 font-semibold">Net Profit:</span>
+              <span class="text-green-300 font-bold">$${opp.netProfit}</span>
+            </div>
+          </div>
+        </div>
+        
+        <div class="mt-4 text-xs text-gray-500">
+          <p><i class="fas fa-info-circle"></i> Timestamp: ${new Date(opp.timestamp).toLocaleString()}</p>
+          <p class="truncate mt-1">Token0 Address: ${opp.token0Address}</p>
+          <p class="truncate">Token1 Address: ${opp.token1Address}</p>
+        </div>
+      `;
+      
+      modal.style.display = 'block';
+    }
+
+    // Close modal
+    function closeModal() {
+      document.getElementById('detailsModal').style.display = 'none';
+    }
+
+    // Copy trade details
+    function copyTradeDetails(opp) {
+      const detailsText = `
+Arbitrage Opportunity - ${opp.network.toUpperCase()}
 Pair: ${opp.pair}
-Network: ${opp.network}
-Profit: ${opp.profitPercent}%
-Buy on: ${opp.buyDex} (Price: ${opp.buyPrice})
-Sell on: ${opp.sellDex} (Price: ${opp.sellPrice})
-Net Profit: $${opp.netProfit} (after gas: $${opp.gasEstimate})
+Profit: +${opp.profitPercent}%
+Net Profit: $${opp.netProfit} (after $${opp.gasEstimate} gas)
+
+ARBITRAGE STRATEGY:
+${opp.tradeAction}
+
+TRADE DETAILS:
+- Buy Token: ${opp.buyToken}
+- Buy on: ${opp.buyDex}
+- Buy Price: ${opp.buyPrice} ${opp.buyToken} per ${opp.pair.split('/')[0]}
+- Sell Token: ${opp.sellToken}
+- Sell on: ${opp.sellDex}
+- Sell Price: ${opp.sellPrice} ${opp.sellToken} per ${opp.pair.split('/')[0]}
+
+FINANCIAL DETAILS:
+- Trade Size: $${opp.tradeSize.toLocaleString()}
+- Gross Profit: $${opp.estimatedProfit}
+- Gas Cost: $${opp.gasEstimate}
+- Net Profit: $${opp.netProfit}
+
 Timestamp: ${new Date(opp.timestamp).toLocaleString()}
       `.trim();
       
-      navigator.clipboard.writeText(strategyText)
-        .then(() => showStatus('✅ Strategy copied to clipboard!', 'green'))
-        .catch(err => showStatus('❌ Failed to copy', 'red'));
+      navigator.clipboard.writeText(detailsText)
+        .then(() => showStatus('✅ Trade details copied to clipboard!', 'green'))
+        .catch(err => showStatus('❌ Failed to copy details', 'red'));
     }
 
     // Toggle scanning
@@ -485,22 +614,20 @@ Timestamp: ${new Date(opp.timestamp).toLocaleString()}
       const warning = document.getElementById('networkWarning');
 
       if (isScanning) {
-        // Stop scanning
         clearInterval(scanInterval);
         isScanning = false;
-        button.className = 'flex items-center gap-3 px-8 py-4 rounded-lg font-semibold text-white transition-all bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 shadow-lg hover:shadow-xl';
-        button.innerHTML = '<i class="fas fa-play"></i> Start Scanning';
+        button.className = 'flex items-center gap-2 md:gap-3 px-6 md:px-8 py-3 md:py-4 rounded-lg font-semibold text-white transition-all bg-gradient-to-r from-green-600 to-emerald-700 hover:from-green-700 hover:to-emerald-800 shadow-lg hover:shadow-xl';
+        button.innerHTML = '<i class="fas fa-play"></i> <span class="hidden md:inline">Start Scanning</span>';
         warning.classList.add('hidden');
         showStatus('⏸️ Scanning stopped', 'gray');
       } else {
-        // Start scanning
         isScanning = true;
-        button.className = 'flex items-center gap-3 px-8 py-4 rounded-lg font-semibold text-white transition-all bg-gradient-to-r from-red-600 to-orange-700 hover:from-red-700 hover:to-orange-800 shadow-lg hover:shadow-xl';
-        button.innerHTML = '<i class="fas fa-stop"></i> Stop Scanning';
+        button.className = 'flex items-center gap-2 md:gap-3 px-6 md:px-8 py-3 md:py-4 rounded-lg font-semibold text-white transition-all bg-gradient-to-r from-red-600 to-orange-700 hover:from-red-700 hover:to-orange-800 shadow-lg hover:shadow-xl';
+        button.innerHTML = '<i class="fas fa-stop"></i> <span class="hidden md:inline">Stop Scanning</span>';
         warning.classList.remove('hidden');
         
-        scanForArbitrage(); // Immediate first scan
-        scanInterval = setInterval(scanForArbitrage, 10000); // Then every 10 seconds
+        scanForArbitrage();
+        scanInterval = setInterval(scanForArbitrage, 10000);
       }
     }
 
@@ -525,19 +652,25 @@ Timestamp: ${new Date(opp.timestamp).toLocaleString()}
       }
     };
 
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+      const modal = document.getElementById('detailsModal');
+      if (event.target == modal) {
+        modal.style.display = 'none';
+      }
+    };
+
     // Initialize
     document.addEventListener('DOMContentLoaded', () => {
       initNetworkButtons();
       document.getElementById('scanButton').onclick = toggleScanning;
       
-      // Test backend connection
       fetch(`${API_BASE_URL}/health`)
         .then(res => res.json())
         .then(data => {
           console.log('✅ Backend connected:', data);
           showStatus('✅ Connected to backend successfully', 'green');
           
-          // Load initial pairs count
           fetch(`${API_BASE_URL}/api/pairs/${selectedNetwork}`)
             .then(res => res.json())
             .then(pairsData => {
